@@ -751,28 +751,103 @@ button {
 .mt-4 { margin-top: 1rem; }
 .text-xs { font-size: 0.75rem; }
 
-/* Responsive */
+/* Responsive Overhaul */
+@media (max-width: 1024px) {
+  .bom-layout {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  
+  .product-list {
+    max-height: 350px;
+  }
+}
+
 @media (max-width: 768px) {
+  .app-header {
+    padding: 1.5rem 1rem;
+  }
+  
   .header-content {
     flex-direction: column;
-    align-items: flex-start;
-    gap: 1rem;
+    align-items: center;
+    text-align: center;
+    gap: 1.5rem;
   }
   
-  .header-actions {
-    width: 100%;
-  }
-  
-  .header-actions button {
-    flex: 1;
-  }
-  
-  .total-card .amount {
-    font-size: 2.5rem;
+  .logo-section {
+    flex-direction: column;
+    align-items: center;
   }
 
-  .form-row {
+  .tab-navigation {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 0.5rem;
+    justify-content: flex-start;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .tab-btn {
+    white-space: nowrap;
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    flex: 0 0 auto;
+  }
+
+  .main-content {
+    padding: 1rem;
+  }
+
+  .summary-banner {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .section-header {
     flex-direction: column;
-    gap: 1.25rem;
+    align-items: stretch;
+    gap: 1rem;
+  }
+
+  .title-group {
+    width: 100%;
+  }
+
+  .actions {
+    justify-content: flex-end;
+  }
+
+  .title-input {
+    font-size: 1.1rem;
+    width: 100%;
+  }
+
+  /* Table scrollability */
+  .table-container, .builder-table-wrapper {
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+  }
+
+  .cost-table {
+    min-width: 600px;
+  }
+
+  .bom-builder {
+    padding: 0 1rem 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 { font-size: 1.1rem; }
+  .logo-icon { width: 35px; height: 35px; }
+  
+  .summary-item .val {
+    font-size: 1.35rem;
+  }
+  
+  .card {
+    padding: 1rem;
   }
 }
