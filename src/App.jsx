@@ -59,7 +59,9 @@ function App() {
       name: m.name,
       unit_price: m.unit_price,
       unit_type: m.unit_type,
-      usage_unit: m.usage_unit
+      usage_unit: m.usage_unit,
+      purchase_price: m.purchase_price,
+      purchase_qty: m.purchase_qty
     });
     if (!error) fetchAllData();
   };
@@ -185,48 +187,63 @@ function App() {
                 <thead>
                   <tr>
                     <th>ชื่อวัตถุดิบ</th>
-                    <th className="text-right">ราคาต่อหน่วย</th>
+                    <th className="text-right">ราคาที่ซื้อมา (บาท)</th>
+                    <th className="text-right">ปริมาณที่ได้</th>
+                    <th className="text-right">ราคาเฉลี่ยต่อหน่วย</th>
                     <th>ประเภทหน่วย</th>
                     <th>หน่วยที่ใช้จริง</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {materials.map(m => (
-                    <tr key={m.id}>
-                      <td><input className="inline-input" value={m.name} onChange={e => setMaterials(materials.map(mat => mat.id === m.id ? { ...mat, name: e.target.value } : mat))} onBlur={() => handleSaveMaterial(m)} /></td>
-                      <td><input type="number" className="inline-input text-right" value={m.unit_price} onChange={e => setMaterials(materials.map(mat => mat.id === m.id ? { ...mat, unit_price: Number(e.target.value) } : mat))} onBlur={() => handleSaveMaterial(m)} /></td>
-                      <td>
-                        <select className="inline-input" value={m.unit_type} onChange={e => {
-                          const newType = e.target.value;
-                          let newUnit = 'ชิ้น';
-                          if (newType === 'บาท/กิโลกรัม') newUnit = 'กิโลกรัม';
-                          if (newType === 'บาท/ลิตร') newUnit = 'ลิตร';
-                          const updated = materials.map(mat => mat.id === m.id ? { ...mat, unit_type: newType, usage_unit: newUnit } : mat);
+                  {materials.map(m => {
+                    const calculatedUnitPrice = m.purchase_price / (m.purchase_qty || 1);
+                    return (
+                      <tr key={m.id}>
+                        <td><input className="inline-input" value={m.name} onChange={e => setMaterials(materials.map(mat => mat.id === m.id ? { ...mat, name: e.target.value } : mat))} onBlur={() => handleSaveMaterial(m)} /></td>
+                        <td><input type="number" className="inline-input text-right" value={m.purchase_price} onChange={e => {
+                          const val = Number(e.target.value);
+                          const updated = materials.map(mat => mat.id === m.id ? { ...mat, purchase_price: val, unit_price: val / (mat.purchase_qty || 1) } : mat);
                           setMaterials(updated);
-                          handleSaveMaterial(updated.find(x => x.id === m.id));
-                        }}>
-                          <option value="บาท/กิโลกรัม">บาท/กิโลกรัม</option>
-                          <option value="บาท/ลิตร">บาท/ลิตร</option>
-                          <option value="บาท/ชิ้น">บาท/ชิ้น</option>
-                        </select>
-                      </td>
-                      <td>
-                        <select className="inline-input" value={m.usage_unit} onChange={e => {
-                          const updated = materials.map(mat => mat.id === m.id ? { ...mat, usage_unit: e.target.value } : mat);
+                        }} onBlur={() => handleSaveMaterial(materials.find(x => x.id === m.id))} /></td>
+                        <td><input type="number" className="inline-input text-right" value={m.purchase_qty} onChange={e => {
+                          const val = Number(e.target.value);
+                          const updated = materials.map(mat => mat.id === m.id ? { ...mat, purchase_qty: val, unit_price: mat.purchase_price / (val || 1) } : mat);
                           setMaterials(updated);
-                          handleSaveMaterial(updated.find(x => x.id === m.id));
-                        }}>
-                          {m.unit_type === 'บาท/กิโลกรัม' && <><option value="กิโลกรัม">กิโลกรัม</option><option value="กรัม">กรัม</option></>}
-                          {m.unit_type === 'บาท/ลิตร' && <><option value="ลิตร">ลิตร</option><option value="มิลลิลิตร">มิลลิลิตร</option></>}
-                          {m.unit_type === 'บาท/ชิ้น' && <><option value="ชิ้น">ชิ้น</option><option value="ใบ">ใบ</option><option value="กล่อง">กล่อง</option></>}
-                        </select>
-                      </td>
-                      <td className="text-center">
-                        <button className="icon-btn delete-btn" onClick={() => handleDeleteMaterial(m.id)}><Trash2 size={16} /></button>
-                      </td>
-                    </tr>
-                  ))}
+                        }} onBlur={() => handleSaveMaterial(materials.find(x => x.id === m.id))} /></td>
+                        <td className="text-right font-bold text-primary">฿{calculatedUnitPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td>
+                          <select className="inline-input" value={m.unit_type} onChange={e => {
+                            const newType = e.target.value;
+                            let newUnit = 'ชิ้น';
+                            if (newType === 'บาท/กิโลกรัม') newUnit = 'กิโลกรัม';
+                            if (newType === 'บาท/ลิตร') newUnit = 'ลิตร';
+                            const updated = materials.map(mat => mat.id === m.id ? { ...mat, unit_type: newType, usage_unit: newUnit } : mat);
+                            setMaterials(updated);
+                            handleSaveMaterial(updated.find(x => x.id === m.id));
+                          }}>
+                            <option value="บาท/กิโลกรัม">บาท/กิโลกรัม</option>
+                            <option value="บาท/ลิตร">บาท/ลิตร</option>
+                            <option value="บาท/ชิ้น">บาท/ชิ้น</option>
+                          </select>
+                        </td>
+                        <td>
+                          <select className="inline-input" value={m.usage_unit} onChange={e => {
+                            const updated = materials.map(mat => mat.id === m.id ? { ...mat, usage_unit: e.target.value } : mat);
+                            setMaterials(updated);
+                            handleSaveMaterial(updated.find(x => x.id === m.id));
+                          }}>
+                            {m.unit_type === 'บาท/กิโลกรัม' && <><option value="กิโลกรัม">กิโลกรัม</option><option value="กรัม">กรัม</option></>}
+                            {m.unit_type === 'บาท/ลิตร' && <><option value="ลิตร">ลิตร</option><option value="มิลลิลิตร">มิลลิลิตร</option></>}
+                            {m.unit_type === 'บาท/ชิ้น' && <><option value="ชิ้น">ชิ้น</option><option value="ใบ">ใบ</option><option value="กล่อง">กล่อง</option></>}
+                          </select>
+                        </td>
+                        <td className="text-center">
+                          <button className="icon-btn delete-btn" onClick={() => handleDeleteMaterial(m.id)}><Trash2 size={16} /></button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
