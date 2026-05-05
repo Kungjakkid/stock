@@ -203,22 +203,23 @@ function App() {
               <p className="subtitle">Connected to Supabase Database</p>
             </div>
           </div>
-          <div className="tab-navigation">
-            <button className={`tab-btn ${activeTab === 'finished' ? 'active' : ''}`} onClick={() => { setActiveTab('finished'); setSelectedItem(null); }}>
-              <Package size={18} /> สินค้าสำเร็จรูป
-            </button>
-            <button className={`tab-btn ${activeTab === 'semifinished' ? 'active' : ''}`} onClick={() => { setActiveTab('semifinished'); setSelectedItem(null); }}>
-              <Archive size={18} /> สินค้ากึ่งสำเร็จรูป
-            </button>
-            <button className={`tab-btn ${activeTab === 'materials' ? 'active' : ''}`} onClick={() => { setActiveTab('materials'); setSelectedItem(null); }}>
-              <Database size={18} /> คลังวัตถุดิบ
-            </button>
-            <button className={`tab-btn ${activeTab === 'finance' ? 'active' : ''}`} onClick={() => { setActiveTab('finance'); setSelectedItem(null); }}>
-              <Calculator size={18} /> บัญชี/รายจ่าย
-            </button>
-          </div>
         </div>
       </header>
+
+      <div className="tab-navigation">
+        <button className={`tab-btn ${activeTab === 'finished' ? 'active' : ''}`} onClick={() => { setActiveTab('finished'); setSelectedItem(null); }}>
+          <Package size={18} /> สินค้าสำเร็จรูป
+        </button>
+        <button className={`tab-btn ${activeTab === 'semifinished' ? 'active' : ''}`} onClick={() => { setActiveTab('semifinished'); setSelectedItem(null); }}>
+          <Archive size={18} /> สินค้ากึ่งสำเร็จรูป
+        </button>
+        <button className={`tab-btn ${activeTab === 'materials' ? 'active' : ''}`} onClick={() => { setActiveTab('materials'); setSelectedItem(null); }}>
+          <Database size={18} /> คลังวัตถุดิบ
+        </button>
+        <button className={`tab-btn ${activeTab === 'finance' ? 'active' : ''}`} onClick={() => { setActiveTab('finance'); setSelectedItem(null); }}>
+          <Calculator size={18} /> บัญชี/รายจ่าย
+        </button>
+      </div>
 
       <main className="main-content">
         {activeTab === 'finance' ? (
