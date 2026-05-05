@@ -649,6 +649,80 @@ button {
   gap: 1rem;
 }
 
+/* Finance Styles */
+.finance-banner {
+  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+}
+
+.row-income {
+  border-left: 4px solid #10b981;
+}
+
+.row-expense {
+  border-left: 4px solid #ef4444;
+}
+
+.btn-success {
+  background: #10b981;
+  color: white;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-success:hover { background: #059669; transform: translateY(-1px); }
+
+.btn-danger {
+  background: #ef4444;
+  color: white;
+  padding: 0.6rem 1.2rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-danger:hover { background: #dc2626; transform: translateY(-1px); }
+
+.upload-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #f1f5f9;
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: var(--primary);
+  border: 1px dashed var(--primary);
+}
+
+.receipt-link {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.receipt-thumb {
+  width: 30px;
+  height: 30px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.text-success { color: #10b981 !important; }
+.text-danger { color: #ef4444 !important; }
+
 .primary-bg {
   background: var(--primary);
   color: white !important;

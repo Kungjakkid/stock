@@ -5,10 +5,11 @@ import { calculateFinishedCost, calculateSemiFinishedCost, calculateItemCost } f
 import './index.css';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('finished'); // 'finished', 'semifinished', 'materials'
+  const [activeTab, setActiveTab] = useState('finished'); // 'finished', 'semifinished', 'materials', 'finance'
   const [materials, setMaterials] = useState([]);
   const [semiFinished, setSemiFinished] = useState([]);
   const [finished, setFinished] = useState([]);
+  const [transactions, setTransactions] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -45,6 +46,10 @@ function App() {
         }))
       })) || [];
       setFinished(formattedF);
+
+      // 4. Fetch Transactions
+      const { data: trans } = await supabase.from('transactions').select('*').order('date', { ascending: false });
+      setTransactions(trans || []);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -141,6 +146,43 @@ function App() {
     setFinished(finished.map(f => f.id === id ? { ...f, sellingPrice: price } : f));
   };
 
+  // --- Handlers for Finance ---
+  const handleAddTransaction = async (type) => {
+    const { data, error } = await supabase.from('transactions').insert({
+      type,
+      category: type === 'income' ? 'รายรับแอป' : 'รายจ่ายทั่วไป',
+      amount: 0,
+      note: ''
+    }).select();
+    if (!error) fetchAllData();
+  };
+
+  const handleFileUpload = async (e, transId) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `receipts/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('receipts')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      alert('อัปโหลดรูปไม่สำเร็จ: ' + uploadError.message);
+      return;
+    }
+
+    const { data: { publicUrl } } = supabase.storage.from('receipts').getPublicUrl(filePath);
+    
+    await supabase.from('transactions').update({ image_url: publicUrl }).eq('id', transId);
+    fetchAllData();
+  };
+
+  const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
+  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0);
+
   if (loading && materials.length === 0) {
     return (
       <div className="loading-screen">
@@ -157,7 +199,7 @@ function App() {
           <div className="logo-section">
             <div className="logo-icon"><Calculator size={24} /></div>
             <div>
-              <h1>ระบบคำนวณต้นทุน Real-time</h1>
+              <h1>ระบบบริหารต้นทุน & บัญชี</h1>
               <p className="subtitle">Connected to Supabase Database</p>
             </div>
           </div>
@@ -171,12 +213,105 @@ function App() {
             <button className={`tab-btn ${activeTab === 'materials' ? 'active' : ''}`} onClick={() => { setActiveTab('materials'); setSelectedItem(null); }}>
               <Database size={18} /> คลังวัตถุดิบ
             </button>
+            <button className={`tab-btn ${activeTab === 'finance' ? 'active' : ''}`} onClick={() => { setActiveTab('finance'); setSelectedItem(null); }}>
+              <Calculator size={18} /> บัญชี/รายจ่าย
+            </button>
           </div>
         </div>
       </header>
 
       <main className="main-content">
-        {activeTab === 'materials' ? (
+        {activeTab === 'finance' ? (
+          <div className="finance-section">
+            <div className="summary-banner finance-banner">
+              <div className="summary-item">
+                <label>รายรับรวม (ถอนเงิน)</label>
+                <p className="val text-success">฿{totalIncome.toLocaleString()}</p>
+              </div>
+              <div className="summary-item">
+                <label>รายจ่ายรวม (บิล/ใบเสร็จ)</label>
+                <p className="val text-danger">฿{totalExpense.toLocaleString()}</p>
+              </div>
+              <div className="summary-item">
+                <label>กำไรคงเหลือในบัญชี</label>
+                <p className="val text-primary">฿{(totalIncome - totalExpense).toLocaleString()}</p>
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="section-header">
+                <h2>รายการเดินบัญชี</h2>
+                <div className="actions">
+                  <button className="btn-success" onClick={() => handleAddTransaction('income')}><Plus size={16} /> ลงรายรับ</button>
+                  <button className="btn-danger" onClick={() => handleAddTransaction('expense')}><Plus size={16} /> ลงรายจ่าย</button>
+                </div>
+              </div>
+              <div className="table-container">
+                <table className="cost-table">
+                  <thead>
+                    <tr>
+                      <th>วันที่</th>
+                      <th>ประเภท</th>
+                      <th>หมวดหมู่/หมายเหตุ</th>
+                      <th className="text-right">จำนวนเงิน</th>
+                      <th>หลักฐาน (บิล/สลิป)</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {transactions.map(t => (
+                      <tr key={t.id} className={t.type === 'income' ? 'row-income' : 'row-expense'}>
+                        <td><input type="date" className="inline-input" value={t.date} onChange={async (e) => {
+                          await supabase.from('transactions').update({ date: e.target.value }).eq('id', t.id);
+                          fetchAllData();
+                        }} /></td>
+                        <td className="font-bold">{t.type === 'income' ? 'รายรับ' : 'รายจ่าย'}</td>
+                        <td>
+                          <input className="inline-input" placeholder="เช่น ค่าวัสดุ, เงินถอน..." value={t.category} 
+                            onChange={e => setTransactions(transactions.map(x => x.id === t.id ? { ...x, category: e.target.value } : x))}
+                            onBlur={async () => {
+                              await supabase.from('transactions').update({ category: t.category }).eq('id', t.id);
+                            }}
+                          />
+                        </td>
+                        <td>
+                          <input type="number" className="inline-input text-right font-bold" value={t.amount} 
+                            onChange={e => setTransactions(transactions.map(x => x.id === t.id ? { ...x, amount: e.target.value } : x))}
+                            onBlur={async () => {
+                              await supabase.from('transactions').update({ amount: Number(t.amount) }).eq('id', t.id);
+                              fetchAllData();
+                            }}
+                          />
+                        </td>
+                        <td>
+                          {t.image_url ? (
+                            <a href={t.image_url} target="_blank" rel="noreferrer" className="receipt-link">
+                              <img src={t.image_url} alt="receipt" className="receipt-thumb" />
+                              ดูรูปใบเสร็จ
+                            </a>
+                          ) : (
+                            <label className="upload-btn">
+                              <input type="file" hidden onChange={(e) => handleFileUpload(e, t.id)} accept="image/*" />
+                              <Plus size={14} /> แนบบิล
+                            </label>
+                          )}
+                        </td>
+                        <td>
+                          <button className="icon-btn delete-btn" onClick={async () => {
+                            if (window.confirm('ลบรายการนี้?')) {
+                              await supabase.from('transactions').delete().eq('id', t.id);
+                              fetchAllData();
+                            }
+                          }}><Trash2 size={16} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'materials' ? (
           <div className="card material-library">
             <div className="section-header">
               <h2><Database size={20} /> คลังวัตถุดิบ (Raw Materials)</h2>
