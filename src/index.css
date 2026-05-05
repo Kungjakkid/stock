@@ -839,14 +839,14 @@ button {
 
 @media (max-width: 768px) {
   .app-header {
-    padding: 1.5rem 1rem;
+    padding: 1rem;
+    text-align: center;
   }
   
   .header-content {
     flex-direction: column;
     align-items: center;
-    text-align: center;
-    gap: 1.5rem;
+    gap: 0.5rem;
   }
   
   .logo-section {
@@ -854,23 +854,49 @@ button {
     align-items: center;
   }
 
+  /* Bottom Navigation Style */
   .tab-navigation {
+    position: fixed;
+    bottom: 0;
+    left: 0;
     width: 100%;
-    overflow-x: auto;
-    padding-bottom: 0.5rem;
-    justify-content: flex-start;
-    -webkit-overflow-scrolling: touch;
+    background: white;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0.5rem 0.25rem env(safe-area-inset-bottom);
+    border-top: 1px solid var(--border-color);
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.05);
+    z-index: 2000;
   }
   
   .tab-btn {
-    white-space: nowrap;
-    padding: 0.6rem 1rem;
-    font-size: 0.85rem;
-    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 0.25rem;
+    background: transparent;
+    border: none;
+    padding: 0.5rem;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    flex: 1;
+    min-width: 0;
+    border-radius: 0;
+  }
+
+  .tab-btn.active {
+    background: transparent;
+    color: var(--primary);
+    box-shadow: none;
+  }
+
+  .tab-btn svg {
+    width: 20px;
+    height: 20px;
   }
 
   .main-content {
     padding: 1rem;
+    padding-bottom: 80px; /* Space for bottom nav */
   }
 
   .summary-banner {
@@ -883,19 +909,6 @@ button {
     flex-direction: column;
     align-items: stretch;
     gap: 1rem;
-  }
-
-  .title-group {
-    width: 100%;
-  }
-
-  .actions {
-    justify-content: flex-end;
-  }
-
-  .title-input {
-    font-size: 1.1rem;
-    width: 100%;
   }
 
   /* Table scrollability */
