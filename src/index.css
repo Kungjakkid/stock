@@ -832,3 +832,35 @@ body {
   color: var(--primary);
   font-size: 0.8rem;
 }
+
+.action-cells {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+}
+
+.save-btn {
+  color: var(--success);
+  background: rgba(34, 197, 94, 0.1);
+  padding: 0.4rem 0.8rem !important;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  width: auto !important;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.save-btn:hover {
+  background: var(--success);
+  color: white;
+}
+
+.delete-btn {
+  color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: 6px;
+}

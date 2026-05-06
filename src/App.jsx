@@ -180,6 +180,25 @@ function App() {
     fetchAllData();
   };
 
+  const handleSaveTransaction = async (t) => {
+    const { error } = await supabase.from('transactions').update({
+      date: t.date,
+      category: t.category,
+      amount: Number(t.amount),
+      note: t.note,
+      is_vat: t.is_vat,
+      vat_amount: Number(t.vat_amount),
+      items: t.items
+    }).eq('id', t.id);
+    
+    if (!error) {
+      alert('บันทึกข้อมูลเรียบร้อยแล้ว');
+      fetchAllData();
+    } else {
+      alert('บันทึกไม่สำเร็จ: ' + error.message);
+    }
+  };
+
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0);
 
@@ -396,12 +415,17 @@ function App() {
                           </div>
                         </td>
                         <td data-label="จัดการ" className="text-center">
-                          <button className="icon-btn delete-btn" onClick={async () => {
-                            if (window.confirm('ลบรายการนี้?')) {
-                              await supabase.from('transactions').delete().eq('id', t.id);
-                              fetchAllData();
-                            }
-                          }}><Trash2 size={16} /></button>
+                          <div className="action-cells">
+                            <button className="icon-btn save-btn" onClick={() => handleSaveTransaction(t)} title="บันทึก" style={{color: 'var(--success)'}}>
+                              <Save size={20} /> บันทึก
+                            </button>
+                            <button className="icon-btn delete-btn" onClick={async () => {
+                              if (window.confirm('ลบรายการนี้?')) {
+                                await supabase.from('transactions').delete().eq('id', t.id);
+                                fetchAllData();
+                              }
+                            }}><Trash2 size={16} /></button>
+                          </div>
                         </td>
                       </tr>
                     ))}
