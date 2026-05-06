@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Package, Database, Trash2, Layers, ChevronRight, Calculator, Archive, Save, RefreshCw } from 'lucide-react';
+import { Plus, Package, Database, Trash2, Layers, ChevronRight, Calculator, Archive, Save, RefreshCw, ArrowLeft } from 'lucide-react';
 import { supabase } from './supabaseClient';
 import { calculateFinishedCost, calculateSemiFinishedCost, calculateItemCost } from './utils/calculations';
 import './index.css';
@@ -208,16 +208,20 @@ function App() {
 
       <div className="tab-navigation">
         <button className={`tab-btn ${activeTab === 'finished' ? 'active' : ''}`} onClick={() => { setActiveTab('finished'); setSelectedItem(null); }}>
-          <Package size={18} /> สินค้าสำเร็จรูป
+          <Package size={20} /> 
+          <span>สินค้าสำเร็จรูป</span>
         </button>
         <button className={`tab-btn ${activeTab === 'semifinished' ? 'active' : ''}`} onClick={() => { setActiveTab('semifinished'); setSelectedItem(null); }}>
-          <Archive size={18} /> สินค้ากึ่งสำเร็จรูป
+          <Archive size={20} />
+          <span>กึ่งสำเร็จรูป</span>
         </button>
         <button className={`tab-btn ${activeTab === 'materials' ? 'active' : ''}`} onClick={() => { setActiveTab('materials'); setSelectedItem(null); }}>
-          <Database size={18} /> คลังวัตถุดิบ
+          <Database size={20} />
+          <span>คลังวัตถุดิบ</span>
         </button>
         <button className={`tab-btn ${activeTab === 'finance' ? 'active' : ''}`} onClick={() => { setActiveTab('finance'); setSelectedItem(null); }}>
-          <Calculator size={18} /> บัญชี/รายจ่าย
+          <Calculator size={20} />
+          <span>บัญชี</span>
         </button>
       </div>
 
@@ -253,29 +257,29 @@ function App() {
                     <tr>
                       <th>วันที่</th>
                       <th>ประเภท</th>
-                      <th>หมวดหมู่/หมายเหตุ</th>
+                      <th>หมวดหมู่</th>
                       <th className="text-right">จำนวนเงิน</th>
-                      <th>หลักฐาน (บิล/สลิป)</th>
-                      <th></th>
+                      <th>หลักฐาน</th>
+                      <th>จัดการ</th>
                     </tr>
                   </thead>
                   <tbody>
                     {transactions.map(t => (
                       <tr key={t.id} className={t.type === 'income' ? 'row-income' : 'row-expense'}>
-                        <td><input type="date" className="inline-input" value={t.date} onChange={async (e) => {
+                        <td data-label="วันที่"><input type="date" className="inline-input" value={t.date} onChange={async (e) => {
                           await supabase.from('transactions').update({ date: e.target.value }).eq('id', t.id);
                           fetchAllData();
                         }} /></td>
-                        <td className="font-bold">{t.type === 'income' ? 'รายรับ' : 'รายจ่าย'}</td>
-                        <td>
-                          <input className="inline-input" placeholder="เช่น ค่าวัสดุ, เงินถอน..." value={t.category} 
+                        <td data-label="ประเภท" className="font-bold">{t.type === 'income' ? 'รายรับ' : 'รายจ่าย'}</td>
+                        <td data-label="หมวดหมู่">
+                          <input className="inline-input" placeholder="เช่น ค่าวัสดุ..." value={t.category} 
                             onChange={e => setTransactions(transactions.map(x => x.id === t.id ? { ...x, category: e.target.value } : x))}
                             onBlur={async () => {
                               await supabase.from('transactions').update({ category: t.category }).eq('id', t.id);
                             }}
                           />
                         </td>
-                        <td>
+                        <td data-label="จำนวนเงิน">
                           <input type="number" className="inline-input text-right font-bold" value={t.amount} 
                             onChange={e => setTransactions(transactions.map(x => x.id === t.id ? { ...x, amount: e.target.value } : x))}
                             onBlur={async () => {
@@ -284,11 +288,11 @@ function App() {
                             }}
                           />
                         </td>
-                        <td>
+                        <td data-label="หลักฐาน">
                           {t.image_url ? (
                             <a href={t.image_url} target="_blank" rel="noreferrer" className="receipt-link">
                               <img src={t.image_url} alt="receipt" className="receipt-thumb" />
-                              ดูรูปใบเสร็จ
+                              <span>ดูรูป</span>
                             </a>
                           ) : (
                             <label className="upload-btn">
@@ -297,7 +301,7 @@ function App() {
                             </label>
                           )}
                         </td>
-                        <td>
+                        <td data-label="จัดการ" className="text-center">
                           <button className="icon-btn delete-btn" onClick={async () => {
                             if (window.confirm('ลบรายการนี้?')) {
                               await supabase.from('transactions').delete().eq('id', t.id);
@@ -336,19 +340,19 @@ function App() {
                     const calculatedUnitPrice = m.purchase_price / (m.purchase_qty || 1);
                     return (
                       <tr key={m.id}>
-                        <td><input className="inline-input" value={m.name} onChange={e => setMaterials(materials.map(mat => mat.id === m.id ? { ...mat, name: e.target.value } : mat))} onBlur={() => handleSaveMaterial(m)} /></td>
-                        <td><input type="number" className="inline-input text-right" value={m.purchase_price} onChange={e => {
+                        <td data-label="ชื่อวัตถุดิบ"><input className="inline-input" value={m.name} onChange={e => setMaterials(materials.map(mat => mat.id === m.id ? { ...mat, name: e.target.value } : mat))} onBlur={() => handleSaveMaterial(m)} /></td>
+                        <td data-label="ราคาซื้อ"><input type="number" className="inline-input text-right" value={m.purchase_price} onChange={e => {
                           const val = Number(e.target.value);
                           const updated = materials.map(mat => mat.id === m.id ? { ...mat, purchase_price: val, unit_price: val / (mat.purchase_qty || 1) } : mat);
                           setMaterials(updated);
                         }} onBlur={() => handleSaveMaterial(materials.find(x => x.id === m.id))} /></td>
-                        <td><input type="number" className="inline-input text-right" value={m.purchase_qty} onChange={e => {
+                        <td data-label="ปริมาณ"><input type="number" className="inline-input text-right" value={m.purchase_qty} onChange={e => {
                           const val = Number(e.target.value);
                           const updated = materials.map(mat => mat.id === m.id ? { ...mat, purchase_qty: val, unit_price: mat.purchase_price / (val || 1) } : mat);
                           setMaterials(updated);
                         }} onBlur={() => handleSaveMaterial(materials.find(x => x.id === m.id))} /></td>
-                        <td className="text-right font-bold text-primary">฿{calculatedUnitPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        <td>
+                        <td data-label="เฉลี่ย/หน่วย" className="text-right font-bold text-primary">฿{calculatedUnitPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td data-label="ประเภทหน่วย">
                           <select className="inline-input" value={m.unit_type} onChange={e => {
                             const newType = e.target.value;
                             let newUnit = 'ชิ้น';
@@ -363,7 +367,7 @@ function App() {
                             <option value="บาท/ชิ้น">บาท/ชิ้น</option>
                           </select>
                         </td>
-                        <td>
+                        <td data-label="หน่วยใช้จริง">
                           <select className="inline-input" value={m.usage_unit} onChange={e => {
                             const updated = materials.map(mat => mat.id === m.id ? { ...mat, usage_unit: e.target.value } : mat);
                             setMaterials(updated);
@@ -374,7 +378,7 @@ function App() {
                             {m.unit_type === 'บาท/ชิ้น' && <><option value="ชิ้น">ชิ้น</option><option value="ใบ">ใบ</option><option value="กล่อง">กล่อง</option></>}
                           </select>
                         </td>
-                        <td className="text-center">
+                        <td data-label="จัดการ" className="text-center">
                           <button className="icon-btn delete-btn" onClick={() => handleDeleteMaterial(m.id)}><Trash2 size={16} /></button>
                         </td>
                       </tr>
@@ -396,18 +400,21 @@ function App() {
                   <div key={p.id} className={`list-item ${selectedItem?.id === p.id ? 'active' : ''}`} onClick={() => setSelectedItem(p)}>
                     <div className="info">
                       <p className="name">{p.name}</p>
-                      <p className="cost">ต้นทุน: ฿{activeTab === 'finished' ? calculateFinishedCost(p, materials, semiFinished) : calculateSemiFinishedCost(p, materials)}</p>
+                      <p className="cost">ต้นทุน: ฿{(activeTab === 'finished' ? calculateFinishedCost(p, materials, semiFinished) : calculateSemiFinishedCost(p, materials)).toLocaleString()}</p>
                     </div>
-                    <ChevronRight size={16} />
+                    <ChevronRight size={20} className="text-muted" />
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="product-detail card">
+            <div className={`product-detail card ${selectedItem ? 'show' : ''}`}>
               {selectedItem ? (
                 <>
                   <div className="section-header">
+                    <button className="mobile-back-btn" onClick={() => setSelectedItem(null)}>
+                      <ArrowLeft size={20} /> ย้อนกลับ
+                    </button>
                     <div className="title-group">
                       <Layers className="text-primary" size={24} />
                       <input className="title-input" value={selectedItem.name} 
@@ -467,11 +474,11 @@ function App() {
                               const cost = calculateSemiFinishedCost(sf, materials) * qty;
                               return (
                                 <tr key={sf.id} className={qty > 0 ? 'row-selected' : ''}>
-                                  <td>{sf.name}</td>
-                                  <td><input type="number" className="inline-input text-right" placeholder="0" value={qty || ''} 
+                                  <td data-label="รายการ">{sf.name}</td>
+                                  <td data-label="จำนวนที่ใช้"><input type="number" className="inline-input text-right" placeholder="0" value={qty || ''} 
                                     onChange={e => handleUpdateFItem(selectedItem.id, sf.id, Number(e.target.value), 'sf')} /></td>
-                                  <td>ชิ้น</td>
-                                  <td className="text-right">฿{cost.toLocaleString()}</td>
+                                  <td data-label="หน่วย">ชิ้น</td>
+                                  <td data-label="ต้นทุนย่อย" className="text-right">฿{cost.toLocaleString()}</td>
                                 </tr>
                               );
                             })}
@@ -499,11 +506,11 @@ function App() {
                               const cost = calculateItemCost(mat, qty);
                               return (
                                 <tr key={mat.id} className={qty > 0 ? 'row-selected' : ''}>
-                                  <td>{mat.name}</td>
-                                  <td><input type="number" className="inline-input text-right" placeholder="0" value={qty || ''} 
+                                  <td data-label="วัตถุดิบ">{mat.name}</td>
+                                  <td data-label="ปริมาณ"><input type="number" className="inline-input text-right" placeholder="0" value={qty || ''} 
                                     onChange={e => activeTab === 'finished' ? handleUpdateFItem(selectedItem.id, mat.id, Number(e.target.value), 'mat') : handleUpdateSFItem(selectedItem.id, mat.id, Number(e.target.value))} /></td>
-                                  <td>{mat.usage_unit}</td>
-                                  <td className="text-right">฿{cost.toLocaleString()}</td>
+                                  <td data-label="หน่วย">{mat.usage_unit}</td>
+                                  <td data-label="ต้นทุน" className="text-right">฿{cost.toLocaleString()}</td>
                                 </tr>
                               );
                             })}
