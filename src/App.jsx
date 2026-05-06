@@ -257,8 +257,9 @@ function App() {
                     <tr>
                       <th>วันที่</th>
                       <th>ประเภท</th>
-                      <th>หมวดหมู่</th>
-                      <th className="text-right">จำนวนเงิน</th>
+                      <th>รายการ / หมายเหตุ</th>
+                      <th className="text-right">ภาษี (VAT 7%)</th>
+                      <th className="text-right">ยอดเงินรวม</th>
                       <th>หลักฐาน</th>
                       <th>จัดการ</th>
                     </tr>
@@ -271,19 +272,42 @@ function App() {
                           fetchAllData();
                         }} /></td>
                         <td data-label="ประเภท" className="font-bold">{t.type === 'income' ? 'รายรับ' : 'รายจ่าย'}</td>
-                        <td data-label="หมวดหมู่">
-                          <input className="inline-input" placeholder="เช่น ค่าวัสดุ..." value={t.category} 
-                            onChange={e => setTransactions(transactions.map(x => x.id === t.id ? { ...x, category: e.target.value } : x))}
-                            onBlur={async () => {
-                              await supabase.from('transactions').update({ category: t.category }).eq('id', t.id);
-                            }}
-                          />
+                        <td data-label="รายการ">
+                          <div className="category-note">
+                            <input className="inline-input font-bold" placeholder="หมวดหมู่..." value={t.category} 
+                              onChange={e => setTransactions(transactions.map(x => x.id === t.id ? { ...x, category: e.target.value } : x))}
+                              onBlur={async () => {
+                                await supabase.from('transactions').update({ category: t.category }).eq('id', t.id);
+                              }}
+                            />
+                            <textarea className="inline-input text-sm text-muted" placeholder="รายละเอียด/รายการย่อย..." value={t.note || ''} 
+                              onChange={e => setTransactions(transactions.map(x => x.id === t.id ? { ...x, note: e.target.value } : x))}
+                              onBlur={async () => {
+                                await supabase.from('transactions').update({ note: t.note }).eq('id', t.id);
+                              }}
+                            />
+                          </div>
                         </td>
-                        <td data-label="จำนวนเงิน">
-                          <input type="number" className="inline-input text-right font-bold" value={t.amount} 
+                        <td data-label="VAT (7%)" className="text-right">
+                          <div className="vat-control">
+                            <label className="vat-toggle">
+                              <input type="checkbox" checked={t.is_vat} onChange={async (e) => {
+                                const is_vat = e.target.checked;
+                                const vat_amount = is_vat ? (Number(t.amount) * 0.07) : 0;
+                                await supabase.from('transactions').update({ is_vat, vat_amount }).eq('id', t.id);
+                                fetchAllData();
+                              }} />
+                              <span>VAT</span>
+                            </label>
+                            {t.is_vat && <span className="vat-val">฿{Number(t.vat_amount || 0).toLocaleString()}</span>}
+                          </div>
+                        </td>
+                        <td data-label="ยอดรวม">
+                          <input type="number" className="inline-input text-right font-bold text-primary" value={t.amount} 
                             onChange={e => setTransactions(transactions.map(x => x.id === t.id ? { ...x, amount: e.target.value } : x))}
                             onBlur={async () => {
-                              await supabase.from('transactions').update({ amount: Number(t.amount) }).eq('id', t.id);
+                              const vat_amount = t.is_vat ? (Number(t.amount) * 0.07) : 0;
+                              await supabase.from('transactions').update({ amount: Number(t.amount), vat_amount }).eq('id', t.id);
                               fetchAllData();
                             }}
                           />
