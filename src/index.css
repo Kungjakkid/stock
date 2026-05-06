@@ -676,6 +676,38 @@ body {
   border: 1px solid var(--border);
 }
 
+.receipt-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .receipt-container {
+    flex-direction: row;
+    align-items: center;
+  }
+}
+
+.receipt-box {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.receipt-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 30px;
+}
+
+.upload-btn.mini {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 4px;
+}
+
 .receipt-link {
   display: flex;
   align-items: center;

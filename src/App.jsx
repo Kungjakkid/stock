@@ -157,12 +157,12 @@ function App() {
     if (!error) fetchAllData();
   };
 
-  const handleFileUpload = async (e, transId) => {
+  const handleFileUpload = async (e, transId, field = 'image_url') => {
     const file = e.target.files[0];
     if (!file) return;
 
     const fileExt = file.name.split('.').pop();
-    const fileName = `${Math.random()}.${fileExt}`;
+    const fileName = `${field}-${Math.random()}.${fileExt}`;
     const filePath = `receipts/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
@@ -176,7 +176,7 @@ function App() {
 
     const { data: { publicUrl } } = supabase.storage.from('receipts').getPublicUrl(filePath);
     
-    await supabase.from('transactions').update({ image_url: publicUrl }).eq('id', transId);
+    await supabase.from('transactions').update({ [field]: publicUrl }).eq('id', transId);
     fetchAllData();
   };
 
@@ -289,17 +289,34 @@ function App() {
                           />
                         </td>
                         <td data-label="หลักฐาน">
-                          {t.image_url ? (
-                            <a href={t.image_url} target="_blank" rel="noreferrer" className="receipt-link">
-                              <img src={t.image_url} alt="receipt" className="receipt-thumb" />
-                              <span>ดูรูป</span>
-                            </a>
-                          ) : (
-                            <label className="upload-btn">
-                              <input type="file" hidden onChange={(e) => handleFileUpload(e, t.id)} accept="image/*" />
-                              <Plus size={14} /> แนบบิล
-                            </label>
-                          )}
+                          <div className="receipt-container">
+                            <div className="receipt-box">
+                              <span className="receipt-label">บิล:</span>
+                              {t.image_url ? (
+                                <a href={t.image_url} target="_blank" rel="noreferrer" className="receipt-link">
+                                  <img src={t.image_url} alt="bill" className="receipt-thumb" />
+                                </a>
+                              ) : (
+                                <label className="upload-btn mini">
+                                  <input type="file" hidden onChange={(e) => handleFileUpload(e, t.id, 'image_url')} accept="image/*" />
+                                  <Plus size={12} /> บิล
+                                </label>
+                              )}
+                            </div>
+                            <div className="receipt-box">
+                              <span className="receipt-label">สลีป:</span>
+                              {t.slip_url ? (
+                                <a href={t.slip_url} target="_blank" rel="noreferrer" className="receipt-link">
+                                  <img src={t.slip_url} alt="slip" className="receipt-thumb" />
+                                </a>
+                              ) : (
+                                <label className="upload-btn mini">
+                                  <input type="file" hidden onChange={(e) => handleFileUpload(e, t.id, 'slip_url')} accept="image/*" />
+                                  <Plus size={12} /> สลีป
+                                </label>
+                              )}
+                            </div>
+                          </div>
                         </td>
                         <td data-label="จัดการ" className="text-center">
                           <button className="icon-btn delete-btn" onClick={async () => {
