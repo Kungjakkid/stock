@@ -284,7 +284,7 @@ function App() {
                             <div className="items-list">
                               {(t.items || []).map((item, idx) => (
                                 <div key={idx} className="item-row">
-                                  <input className="item-name" placeholder="ชื่อรายการ..." value={item.name} 
+                                  <input className="item-name" placeholder="รายการ..." value={item.name} 
                                     onChange={e => {
                                       const newItems = [...(t.items || [])];
                                       newItems[idx].name = e.target.value;
@@ -292,10 +292,34 @@ function App() {
                                     }}
                                     onBlur={async () => await supabase.from('transactions').update({ items: t.items }).eq('id', t.id)}
                                   />
-                                  <input type="number" className="item-price" placeholder="ราคา" value={item.amount} 
+                                  <input className="item-size" placeholder="ขนาด" value={item.size || ''} 
                                     onChange={e => {
                                       const newItems = [...(t.items || [])];
-                                      newItems[idx].amount = Number(e.target.value);
+                                      newItems[idx].size = e.target.value;
+                                      setTransactions(transactions.map(x => x.id === t.id ? { ...x, items: newItems } : x));
+                                    }}
+                                    onBlur={async () => await supabase.from('transactions').update({ items: t.items }).eq('id', t.id)}
+                                  />
+                                  <input type="number" className="item-qty" placeholder="กี่ชิ้น" value={item.qty || 1} 
+                                    onChange={e => {
+                                      const newItems = [...(t.items || [])];
+                                      newItems[idx].qty = Number(e.target.value);
+                                      newItems[idx].amount = newItems[idx].qty * (newItems[idx].price || 0);
+                                      const newTotal = newItems.reduce((sum, i) => sum + Number(i.amount || 0), 0);
+                                      const vat = t.is_vat ? (newTotal * 0.07) : 0;
+                                      setTransactions(transactions.map(x => x.id === t.id ? { ...x, items: newItems, amount: newTotal, vat_amount: vat } : x));
+                                    }}
+                                    onBlur={async () => {
+                                      const vat = t.is_vat ? (Number(t.amount) * 0.07) : 0;
+                                      await supabase.from('transactions').update({ items: t.items, amount: Number(t.amount), vat_amount: vat }).eq('id', t.id);
+                                      fetchAllData();
+                                    }}
+                                  />
+                                  <input type="number" className="item-price" placeholder="ราคา/ชิ้น" value={item.price || 0} 
+                                    onChange={e => {
+                                      const newItems = [...(t.items || [])];
+                                      newItems[idx].price = Number(e.target.value);
+                                      newItems[idx].amount = (newItems[idx].qty || 1) * newItems[idx].price;
                                       const newTotal = newItems.reduce((sum, i) => sum + Number(i.amount || 0), 0);
                                       const vat = t.is_vat ? (newTotal * 0.07) : 0;
                                       setTransactions(transactions.map(x => x.id === t.id ? { ...x, items: newItems, amount: newTotal, vat_amount: vat } : x));
@@ -316,7 +340,7 @@ function App() {
                                 </div>
                               ))}
                               <button className="add-item-btn" onClick={async () => {
-                                const newItems = [...(t.items || []), { name: '', amount: 0 }];
+                                const newItems = [...(t.items || []), { name: '', size: '', qty: 1, price: 0, amount: 0 }];
                                 await supabase.from('transactions').update({ items: newItems }).eq('id', t.id);
                                 fetchAllData();
                               }}><Plus size={12} /> เพิ่มรายการย่อย</button>

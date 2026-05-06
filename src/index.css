@@ -701,6 +701,7 @@ body {
 
 .item-name {
   flex: 2;
+  min-width: 80px;
   font-size: 0.8rem;
   padding: 0.25rem 0.5rem;
   border: 1px solid transparent;
@@ -708,8 +709,27 @@ body {
   border-radius: 4px;
 }
 
-.item-price {
+.item-size {
   flex: 1;
+  min-width: 50px;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid transparent;
+  background: white;
+  border-radius: 4px;
+}
+
+.item-qty {
+  width: 45px;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.3rem;
+  border: 1px solid transparent;
+  background: white;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.item-price {
   width: 70px;
   font-size: 0.8rem;
   padding: 0.25rem 0.5rem;
