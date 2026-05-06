@@ -274,18 +274,53 @@ function App() {
                         <td data-label="ประเภท" className="font-bold">{t.type === 'income' ? 'รายรับ' : 'รายจ่าย'}</td>
                         <td data-label="รายการ">
                           <div className="category-note">
-                            <input className="inline-input font-bold" placeholder="หมวดหมู่..." value={t.category} 
+                            <input className="inline-input font-bold" placeholder="หมวดหมู่หลัก..." value={t.category} 
                               onChange={e => setTransactions(transactions.map(x => x.id === t.id ? { ...x, category: e.target.value } : x))}
                               onBlur={async () => {
                                 await supabase.from('transactions').update({ category: t.category }).eq('id', t.id);
                               }}
                             />
-                            <textarea className="inline-input text-sm text-muted" placeholder="รายละเอียด/รายการย่อย..." value={t.note || ''} 
-                              onChange={e => setTransactions(transactions.map(x => x.id === t.id ? { ...x, note: e.target.value } : x))}
-                              onBlur={async () => {
-                                await supabase.from('transactions').update({ note: t.note }).eq('id', t.id);
-                              }}
-                            />
+                            
+                            <div className="items-list">
+                              {(t.items || []).map((item, idx) => (
+                                <div key={idx} className="item-row">
+                                  <input className="item-name" placeholder="ชื่อรายการ..." value={item.name} 
+                                    onChange={e => {
+                                      const newItems = [...(t.items || [])];
+                                      newItems[idx].name = e.target.value;
+                                      setTransactions(transactions.map(x => x.id === t.id ? { ...x, items: newItems } : x));
+                                    }}
+                                    onBlur={async () => await supabase.from('transactions').update({ items: t.items }).eq('id', t.id)}
+                                  />
+                                  <input type="number" className="item-price" placeholder="ราคา" value={item.amount} 
+                                    onChange={e => {
+                                      const newItems = [...(t.items || [])];
+                                      newItems[idx].amount = Number(e.target.value);
+                                      const newTotal = newItems.reduce((sum, i) => sum + Number(i.amount || 0), 0);
+                                      const vat = t.is_vat ? (newTotal * 0.07) : 0;
+                                      setTransactions(transactions.map(x => x.id === t.id ? { ...x, items: newItems, amount: newTotal, vat_amount: vat } : x));
+                                    }}
+                                    onBlur={async () => {
+                                      const vat = t.is_vat ? (Number(t.amount) * 0.07) : 0;
+                                      await supabase.from('transactions').update({ items: t.items, amount: Number(t.amount), vat_amount: vat }).eq('id', t.id);
+                                      fetchAllData();
+                                    }}
+                                  />
+                                  <button className="icon-btn mini delete-btn" onClick={async () => {
+                                    const newItems = t.items.filter((_, i) => i !== idx);
+                                    const newTotal = newItems.reduce((sum, i) => sum + Number(i.amount || 0), 0);
+                                    const vat = t.is_vat ? (newTotal * 0.07) : 0;
+                                    await supabase.from('transactions').update({ items: newItems, amount: newTotal, vat_amount: vat }).eq('id', t.id);
+                                    fetchAllData();
+                                  }}><Trash2 size={12} /></button>
+                                </div>
+                              ))}
+                              <button className="add-item-btn" onClick={async () => {
+                                const newItems = [...(t.items || []), { name: '', amount: 0 }];
+                                await supabase.from('transactions').update({ items: newItems }).eq('id', t.id);
+                                fetchAllData();
+                              }}><Plus size={12} /> เพิ่มรายการย่อย</button>
+                            </div>
                           </div>
                         </td>
                         <td data-label="VAT (7%)" className="text-right">
