@@ -220,7 +220,9 @@ select option{background:var(--s2)}
 
 <script>
 const SUPABASE_URL = 'https://pahfjtmzytcokxmlblea.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhaGZqdG16eXRjb2t4bWxibGVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3NTQ5NTEsImV4cCI6MjA5MzMzMDk1MX0.dDhTJq4Y7jeMx8UXu8yB07xQE2M1pFC1eLzZW53aBis';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9' +
+  '.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhaGZqdG16eXRjb2t4bWxibGVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3NTQ5NTEsImV4cCI6MjA5MzMzMDk1MX0' +
+  '.dDhTJq4Y7jeMx8UXu8yB07xQE2M1pFC1eLzZW53aBis';
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const fmtB = n => (+n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
