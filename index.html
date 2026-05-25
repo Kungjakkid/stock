@@ -80,9 +80,12 @@ select option{background:var(--s2)}
 .cost-big{font-size:22px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--gold)}
 .del-btn{background:none;border:none;color:var(--t3);cursor:pointer;padding:4px;border-radius:4px;line-height:1}
 .del-btn:hover{color:var(--red)}
-.bom-add-row{display:grid;grid-template-columns:1fr 100px 120px 32px;gap:6px;align-items:center;margin-bottom:8px}
-.bom-header{display:grid;grid-template-columns:1fr 100px 120px 32px;gap:6px;margin-bottom:4px}
+.bom-add-row{display:grid;grid-template-columns:1fr 90px 110px 64px 32px;gap:6px;align-items:center;margin-bottom:8px}
+.bom-header{display:grid;grid-template-columns:1fr 90px 110px 64px 32px;gap:6px;margin-bottom:4px}
 .bom-header span{font-size:11px;color:var(--t3);padding:0 2px}
+.vat-check{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--t2);cursor:pointer;white-space:nowrap}
+.vat-check input{width:14px;height:14px;cursor:pointer;accent-color:var(--gold)}
+.tag-vat{background:rgba(245,200,66,.2);color:var(--gold);border:1px solid rgba(245,200,66,.4);display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:700;margin-left:4px;vertical-align:middle}
 .month-badge{background:var(--gold);color:#000;font-weight:700;font-size:11px;padding:3px 10px;border-radius:20px;display:inline-block;margin-bottom:10px}
 .divider{height:1px;background:var(--b1);margin:18px 0}
 .loading{text-align:center;padding:40px;color:var(--t3);font-size:13px}
@@ -203,7 +206,7 @@ select option{background:var(--s2)}
     <div class="form-row"><label>ชื่อสินค้า</label><input type="text" id="pf-name" placeholder="ชื่อสินค้า"></div>
     <div class="divider"></div>
     <div style="font-size:12px;color:var(--t2);margin-bottom:8px">สูตรวัตถุดิบ (BOM)</div>
-    <div class="bom-header"><span>วัตถุดิบ</span><span>จำนวน</span><span>หน่วย/หมายเหตุ</span><span></span></div>
+    <div class="bom-header"><span>วัตถุดิบ</span><span>จำนวน</span><span>หน่วย/หมายเหตุ</span><span>VAT 7%</span><span></span></div>
     <div id="bom-rows"></div>
     <button class="btn btn-small" style="margin-bottom:14px" onclick="addBOMRow()">+ เพิ่มวัตถุดิบ</button>
     <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -407,11 +410,14 @@ async function delMaterial(id){
 }
 
 // ===== PRODUCTS =====
+function calcItemCost(b){
+  const m=materials.find(x=>x.id===b.matId);
+  const base=m?+m.price*b.qty:0;
+  return b.vat?base*1.07:base;
+}
+
 function calcProductCost(bom){
-  return (bom||[]).reduce((s,b)=>{
-    const m=materials.find(x=>x.id===b.matId);
-    return s+(m?+m.price*b.qty:0);
-  },0);
+  return (bom||[]).reduce((s,b)=>s+calcItemCost(b),0);
 }
 
 async function loadProducts(){
@@ -427,8 +433,9 @@ function renderProducts(){
     const total=calcProductCost(p.bom);
     const rows=(p.bom||[]).map(b=>{
       const m=materials.find(x=>x.id===b.matId);
-      const cost=(m?+m.price*b.qty:0);
-      return `<tr><td>${m?m.name:b.matId}</td><td style="color:var(--t2);font-size:12px">${b.label} × ${m?(+m.price).toFixed(2):'?'} ฿/${m?m.unit:''}</td><td class="amt">${fmtB(cost)}</td></tr>`;
+      const cost=calcItemCost(b);
+      const vatBadge=b.vat?'<span class="tag-vat">VAT 7%</span>':'';
+      return `<tr><td>${m?m.name:b.matId}${vatBadge}</td><td style="color:var(--t2);font-size:12px">${b.label} × ${m?(+m.price).toFixed(2):'?'} ฿/${m?m.unit:''}${b.vat?' (+7%)':''}</td><td class="amt">${fmtB(cost)}</td></tr>`;
     }).join('');
     return `<div class="product-card">
       <div class="product-header" onclick="toggleProduct('body-${p.id}')">
@@ -484,6 +491,7 @@ function addBOMRow(data){
     <select class="bom-mat">${matOpts}</select>
     <input type="number" class="bom-qty" placeholder="จำนวน" step="0.001" value="${data?data.qty:''}" style="text-align:right">
     <input type="text" class="bom-label" placeholder="หน่วย/หมายเหตุ" value="${data?data.label:''}">
+    <label class="vat-check"><input type="checkbox" class="bom-vat" ${data&&data.vat?'checked':''}></label>
     <button class="del-btn" onclick="this.parentElement.remove()">✕</button>
   `;
   document.getElementById('bom-rows').appendChild(div);
@@ -498,7 +506,8 @@ async function saveProduct(){
     const matId=r.querySelector('.bom-mat').value;
     const qty=parseFloat(r.querySelector('.bom-qty').value)||0;
     const label=r.querySelector('.bom-label').value;
-    if(matId&&qty>0) bom.push({matId,qty,label});
+    const vat=r.querySelector('.bom-vat').checked;
+    if(matId&&qty>0) bom.push({matId,qty,label,vat});
   });
   if(!bom.length){alert('กรุณาเพิ่มวัตถุดิบอย่างน้อย 1 รายการ');return}
   setLoading('prod-save-btn',true);
