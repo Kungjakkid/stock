@@ -17,6 +17,7 @@ create table if not exists expenses (
   shop text default '',
   qty text default '',
   total numeric not null default 0,
+  image_url text default null,
   created_at timestamptz default now()
 );
 
@@ -35,6 +36,15 @@ alter table products enable row level security;
 create policy "public all" on materials for all using (true) with check (true);
 create policy "public all" on expenses for all using (true) with check (true);
 create policy "public all" on products for all using (true) with check (true);
+
+-- Storage bucket for expense images
+insert into storage.buckets (id, name, public) values ('expense-images', 'expense-images', true) on conflict do nothing;
+create policy "public upload" on storage.objects for insert with check (bucket_id = 'expense-images');
+create policy "public read" on storage.objects for select using (bucket_id = 'expense-images');
+create policy "public delete" on storage.objects for delete using (bucket_id = 'expense-images');
+
+-- If expenses table already exists, add image_url column
+alter table expenses add column if not exists image_url text default null;
 
 -- Seed initial materials data
 insert into materials (name, unit, price, note) values

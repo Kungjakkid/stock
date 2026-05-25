@@ -86,6 +86,11 @@ select option{background:var(--s2)}
 .toast.show{opacity:1}
 .toast.success{border-color:var(--green);color:var(--green)}
 .toast.error{border-color:var(--red);color:var(--red)}
+#img-drop-zone:hover,#img-drop-zone.dragover{border-color:var(--gold)}
+.exp-thumb{width:36px;height:36px;object-fit:cover;border-radius:5px;cursor:pointer;border:1px solid var(--b1)}
+.lightbox{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:300;align-items:center;justify-content:center;cursor:zoom-out}
+.lightbox.open{display:flex}
+.lightbox img{max-width:92vw;max-height:90vh;border-radius:10px;box-shadow:0 8px 40px #000}
 </style>
 </head>
 <body>
@@ -155,6 +160,14 @@ select option{background:var(--s2)}
       <div class="form-row"><label>จำนวน + หน่วย</label><input type="text" id="ef-qty" placeholder="500 ใบ"></div>
       <div class="form-row"><label>รวมสุทธิ (฿)</label><input type="number" id="ef-total" placeholder="0.00" step="0.01"></div>
     </div>
+    <div class="form-row">
+      <label>รูปภาพ (ใบเสร็จ/สลิป)</label>
+      <div id="img-drop-zone" onclick="document.getElementById('ef-image').click()" style="border:2px dashed var(--b2);border-radius:8px;padding:20px;text-align:center;cursor:pointer;transition:border-color .15s;margin-top:4px">
+        <div id="img-preview-wrap" style="display:none"><img id="img-preview" style="max-height:160px;max-width:100%;border-radius:6px;object-fit:contain"></div>
+        <div id="img-placeholder" style="color:var(--t3);font-size:13px">📷 คลิกหรือลากรูปมาวางที่นี่</div>
+      </div>
+      <input type="file" id="ef-image" accept="image/*" style="display:none" onchange="previewImage(this)">
+    </div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
       <button class="btn" onclick="closeModal('exp-modal')">ยกเลิก</button>
       <button class="btn btn-primary" id="exp-save-btn" onclick="saveExpense()">บันทึก</button>
@@ -197,6 +210,9 @@ select option{background:var(--s2)}
 </div>
 
 <div class="toast" id="toast"></div>
+<div class="lightbox" id="lightbox" onclick="document.getElementById('lightbox').classList.remove('open')">
+  <img id="lightbox-img" src="">
+</div>
 
 <script>
 const SUPABASE_URL = 'https://pahfjtmzytcokxmlblea.supabase.co';
@@ -262,17 +278,30 @@ function renderExpenses(){
     const rows=expenses.filter(e=>e.month===m);
     const total=rows.reduce((s,e)=>s+(+e.total),0);
     html+=`<div class="month-badge">${m}</div>`;
-    html+=`<table><thead><tr><th>วันที่</th><th>รายการ</th><th>ร้านค้า</th><th>จำนวน</th><th style="text-align:right">รวม (฿)</th><th></th></tr></thead><tbody>`;
+    html+=`<table><thead><tr><th>วันที่</th><th>รายการ</th><th>ร้านค้า</th><th>จำนวน</th><th style="text-align:right">รวม (฿)</th><th style="text-align:center">รูป</th><th></th></tr></thead><tbody>`;
     rows.forEach(e=>{
-      html+=`<tr><td>${e.date}</td><td>${e.name}</td><td style="color:var(--t2)">${e.shop}</td><td style="color:var(--t2)">${e.qty}</td><td class="amt" style="text-align:right">${fmtB(e.total)}</td><td><button class="del-btn" onclick="delExpense('${e.id}')">✕</button></td></tr>`;
+      const thumb=e.image_url?`<img class="exp-thumb" src="${e.image_url}" onclick="openLightbox('${e.image_url}')" title="ดูรูป">`:'-';
+      html+=`<tr><td>${e.date}</td><td>${e.name}</td><td style="color:var(--t2)">${e.shop}</td><td style="color:var(--t2)">${e.qty}</td><td class="amt" style="text-align:right">${fmtB(e.total)}</td><td style="text-align:center">${thumb}</td><td><button class="del-btn" onclick="delExpense('${e.id}')">✕</button></td></tr>`;
     });
     html+=`<tr class="total-row"><td colspan="4">รวม ${m}</td><td style="text-align:right">${fmtB(total)}</td><td></td></tr></tbody></table>`;
   });
   document.getElementById('exp-months').innerHTML=html;
 }
 
+function previewImage(input){
+  const file=input.files[0];
+  if(!file) return;
+  const url=URL.createObjectURL(file);
+  document.getElementById('img-preview').src=url;
+  document.getElementById('img-preview-wrap').style.display='block';
+  document.getElementById('img-placeholder').style.display='none';
+}
+
 function openExpModal(){
   ['ef-date','ef-name','ef-shop','ef-qty','ef-total'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('ef-image').value='';
+  document.getElementById('img-preview-wrap').style.display='none';
+  document.getElementById('img-placeholder').style.display='block';
   document.getElementById('exp-modal').classList.add('open');
 }
 
@@ -287,6 +316,15 @@ async function saveExpense(){
   };
   if(!row.name||!row.total){alert('กรุณากรอกรายการและราคา');return}
   setLoading('exp-save-btn',true);
+  const file=document.getElementById('ef-image').files[0];
+  if(file){
+    const ext=file.name.split('.').pop();
+    const path=`expenses/${Date.now()}.${ext}`;
+    const {error:upErr}=await db.storage.from('expense-images').upload(path,file,{cacheControl:'3600',upsert:false});
+    if(upErr){showToast('อัปโหลดรูปล้มเหลว: '+upErr.message,'error');setLoading('exp-save-btn',false);return}
+    const {data:urlData}=db.storage.from('expense-images').getPublicUrl(path);
+    row.image_url=urlData.publicUrl;
+  }
   const {error}=await db.from('expenses').insert(row);
   setLoading('exp-save-btn',false);
   if(error){showToast('บันทึกล้มเหลว: '+error.message,'error');return}
@@ -298,6 +336,11 @@ async function saveExpense(){
 
 async function delExpense(id){
   if(!confirm('ลบรายการนี้?')) return;
+  const exp=expenses.find(e=>e.id===id);
+  if(exp?.image_url){
+    const path=exp.image_url.split('/expense-images/')[1];
+    if(path) await db.storage.from('expense-images').remove([path]);
+  }
   await db.from('expenses').delete().eq('id',id);
   await loadExpenses();
   renderExpenses();
@@ -472,6 +515,25 @@ async function delProduct(id){
   await loadProducts();
   renderProducts();
 }
+
+function openLightbox(url){
+  document.getElementById('lightbox-img').src=url;
+  document.getElementById('lightbox').classList.add('open');
+}
+
+const dropZone=document.getElementById('img-drop-zone');
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('dragover')});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop',e=>{
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const file=e.dataTransfer.files[0];
+  if(!file||!file.type.startsWith('image/')) return;
+  const dt=new DataTransfer();
+  dt.items.add(file);
+  document.getElementById('ef-image').files=dt.files;
+  previewImage(document.getElementById('ef-image'));
+});
 
 document.querySelectorAll('.modal-bg').forEach(m=>{
   m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')});
