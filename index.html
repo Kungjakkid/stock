@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบต้นทุน</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Sarabun',sans-serif;background:#0d0f14;color:#dde0ec;font-size:14px;min-height:100vh}
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap');
+:root{
+  --bg:#0d0f14;--s1:#13161f;--s2:#1a1e2a;--s3:#222635;
+  --b1:#2a2f42;--b2:#363b52;
+  --t1:#dde0ec;--t2:#8a90aa;--t3:#50566e;
+  --gold:#f5c842;--green:#4ecb8d;--red:#f05555;--blue:#4a9eff;
+}
+header{background:var(--s1);border-bottom:1px solid var(--b1);padding:14px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100}
+.logo{width:34px;height:34px;background:var(--gold);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;color:#000;font-size:15px;flex-shrink:0}
+header h1{font-size:15px;font-weight:600}
+header p{font-size:11px;color:var(--t3);margin-top:1px}
+nav{display:flex;gap:2px;padding:10px 16px;background:var(--s1);border-bottom:1px solid var(--b1);overflow-x:auto}
+.nav-btn{padding:7px 14px;border-radius:7px;border:none;background:transparent;color:var(--t2);cursor:pointer;font-size:13px;font-weight:500;white-space:nowrap;display:flex;align-items:center;gap:6px;transition:all .15s}
+.nav-btn.active{background:var(--gold);color:#000;font-weight:700}
+.nav-btn:hover:not(.active){background:var(--s3);color:var(--t1)}
+.page{display:none;padding:16px 18px;max-width:940px;margin:0 auto}
+.page.active{display:block}
+.toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px}
+.toolbar-title{font-size:12px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.07em}
+.btn{padding:7px 14px;border-radius:7px;border:1px solid var(--b2);background:transparent;color:var(--t1);cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px;transition:all .15s}
+.btn:hover{background:var(--s3)}
+.btn-primary{background:var(--gold);color:#000;border-color:var(--gold);font-weight:700}
+.btn-primary:hover{opacity:.85;background:var(--gold)}
+.btn-danger{color:var(--red);border-color:var(--red)}
+.btn-danger:hover{background:rgba(240,85,85,.1)}
+.btn-small{padding:4px 10px;font-size:12px}
+table{width:100%;border-collapse:collapse;background:var(--s1);border-radius:10px;overflow:hidden;border:1px solid var(--b1);margin-bottom:16px}
+thead tr{background:var(--s2)}
+th{padding:9px 12px;text-align:left;font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--b1)}
+td{padding:9px 12px;border-bottom:1px solid var(--b1);font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--s2)}
+.total-row td{background:var(--s2)!important;font-weight:700;color:var(--gold)!important;font-family:'IBM Plex Mono',monospace}
+input[type=text],input[type=number],select,textarea{
+  background:var(--bg);border:1px solid var(--b1);border-radius:6px;
+  color:var(--t1);font-size:13px;padding:7px 10px;
+  font-family:'Sarabun',sans-serif;width:100%;transition:border-color .15s
+}
+input[type=text]:focus,input[type=number]:focus,select:focus{outline:none;border-color:var(--gold)}
+select option{background:var(--s2)}
+.mono{font-family:'IBM Plex Mono',monospace}
+.amt{color:var(--green);font-family:'IBM Plex Mono',monospace;font-weight:600}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.tag-gold{background:rgba(245,200,66,.15);color:var(--gold)}
+.tag-green{background:rgba(78,203,141,.15);color:var(--green)}
+.tag-blue{background:rgba(74,158,255,.15);color:var(--blue)}
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--s1);border:1px solid var(--b2);border-radius:14px;padding:22px;width:min(520px,95vw);max-height:90vh;overflow-y:auto}
+.modal h3{font-size:15px;font-weight:600;margin-bottom:16px}
+.form-row{margin-bottom:12px}
+.form-row label{display:block;font-size:12px;color:var(--t2);margin-bottom:5px}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.summary-bar{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+.sum-card{background:var(--s1);border:1px solid var(--b1);border-radius:10px;padding:14px}
+.sum-label{font-size:11px;color:var(--t3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em}
+.sum-value{font-size:20px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--gold)}
+.sum-sub{font-size:11px;color:var(--t3);margin-top:3px}
+.product-card{background:var(--s1);border:1px solid var(--b1);border-radius:12px;margin-bottom:14px;overflow:hidden}
+.product-header{padding:14px 16px;background:var(--s2);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--b1);cursor:pointer}
+.product-body{padding:0}
+.bom-table{width:100%;border-collapse:collapse}
+.bom-table td{padding:8px 14px;border-bottom:1px solid var(--b1);font-size:13px}
+.bom-table tr:last-child td{border-bottom:none}
+.bom-total{padding:12px 14px;background:var(--s2);display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--b1)}
+.cost-big{font-size:22px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--gold)}
+.del-btn{background:none;border:none;color:var(--t3);cursor:pointer;padding:4px;border-radius:4px;line-height:1}
+.del-btn:hover{color:var(--red)}
+.bom-add-row{display:grid;grid-template-columns:1fr 100px 120px 32px;gap:6px;align-items:center;margin-bottom:8px}
+.bom-header{display:grid;grid-template-columns:1fr 100px 120px 32px;gap:6px;margin-bottom:4px}
+.bom-header span{font-size:11px;color:var(--t3);padding:0 2px}
+.month-badge{background:var(--gold);color:#000;font-weight:700;font-size:11px;padding:3px 10px;border-radius:20px;display:inline-block;margin-bottom:10px}
+.divider{height:1px;background:var(--b1);margin:18px 0}
+.loading{text-align:center;padding:40px;color:var(--t3);font-size:13px}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--s2);border:1px solid var(--b2);border-radius:8px;padding:10px 16px;font-size:13px;z-index:999;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+.toast.success{border-color:var(--green);color:var(--green)}
+.toast.error{border-color:var(--red);color:var(--red)}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">KJ</div>
+  <div>
+    <h1>ระบบต้นทุนสินค้า</h1>
+    <p>วัตถุดิบ · สูตรผลิต · ค่าใช้จ่าย</p>
+  </div>
+</header>
+<nav>
+  <button class="nav-btn active" onclick="showPage('expenses',this)">💰 ค่าใช้จ่าย</button>
+  <button class="nav-btn" onclick="showPage('materials',this)">🧪 วัตถุดิบ</button>
+  <button class="nav-btn" onclick="showPage('products',this)">📦 สินค้าสำเร็จรูป</button>
+</nav>
+
+<!-- EXPENSES PAGE -->
+<div id="page-expenses" class="page active">
+  <div class="summary-bar" id="exp-summary"></div>
+  <div class="toolbar">
+    <span class="toolbar-title">รายการค่าใช้จ่าย</span>
+    <button class="btn btn-primary" onclick="openExpModal()">+ เพิ่มรายการ</button>
+  </div>
+  <div id="exp-months"><div class="loading">กำลังโหลด...</div></div>
+</div>
+
+<!-- MATERIALS PAGE -->
+<div id="page-materials" class="page">
+  <div class="toolbar">
+    <span class="toolbar-title">ฐานข้อมูลวัตถุดิบ</span>
+    <button class="btn btn-primary" onclick="openMatModal()">+ เพิ่มวัตถุดิบ</button>
+  </div>
+  <table>
+    <thead><tr><th>รายการ</th><th>หน่วย</th><th>ราคา/หน่วย (฿)</th><th>หมายเหตุ</th><th></th></tr></thead>
+    <tbody id="mat-tbody"><tr><td colspan="5" class="loading">กำลังโหลด...</td></tr></tbody>
+  </table>
+</div>
+
+<!-- PRODUCTS PAGE -->
+<div id="page-products" class="page">
+  <div class="toolbar">
+    <span class="toolbar-title">สินค้าสำเร็จรูป</span>
+    <button class="btn btn-primary" onclick="openProdModal()">+ เพิ่มสินค้า</button>
+  </div>
+  <div id="prod-list"><div class="loading">กำลังโหลด...</div></div>
+</div>
+
+<!-- MODAL: Expense -->
+<div class="modal-bg" id="exp-modal">
+  <div class="modal">
+    <h3>เพิ่มรายการค่าใช้จ่าย</h3>
+    <div class="form-row-2">
+      <div class="form-row"><label>วันที่</label><input type="text" id="ef-date" placeholder="01/04/69"></div>
+      <div class="form-row"><label>เดือน/ปี</label>
+        <select id="ef-month">
+          <option value="เมษายน 2569">เมษายน 2569</option>
+          <option value="พฤษภาคม 2569">พฤษภาคม 2569</option>
+          <option value="มิถุนายน 2569">มิถุนายน 2569</option>
+          <option value="กรกฎาคม 2569">กรกฎาคม 2569</option>
+          <option value="สิงหาคม 2569">สิงหาคม 2569</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row"><label>รายการ</label><input type="text" id="ef-name" placeholder="ชื่อสินค้า/วัตถุดิบ"></div>
+    <div class="form-row"><label>ร้านค้า</label><input type="text" id="ef-shop" placeholder="ชื่อร้าน"></div>
+    <div class="form-row-2">
+      <div class="form-row"><label>จำนวน + หน่วย</label><input type="text" id="ef-qty" placeholder="500 ใบ"></div>
+      <div class="form-row"><label>รวมสุทธิ (฿)</label><input type="number" id="ef-total" placeholder="0.00" step="0.01"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button class="btn" onclick="closeModal('exp-modal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="exp-save-btn" onclick="saveExpense()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Material -->
+<div class="modal-bg" id="mat-modal">
+  <div class="modal">
+    <h3>เพิ่มวัตถุดิบ</h3>
+    <div class="form-row"><label>ชื่อวัตถุดิบ</label><input type="text" id="mf-name" placeholder="ชื่อวัตถุดิบ"></div>
+    <div class="form-row-2">
+      <div class="form-row"><label>หน่วย</label><input type="text" id="mf-unit" placeholder="kg / ใบ / ชิ้น"></div>
+      <div class="form-row"><label>ราคา/หน่วย (฿)</label><input type="number" id="mf-price" placeholder="0.00" step="0.01"></div>
+    </div>
+    <div class="form-row"><label>หมายเหตุ</label><input type="text" id="mf-note" placeholder="แหล่งที่มา ฯลฯ"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button class="btn" onclick="closeModal('mat-modal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="mat-save-btn" onclick="saveMaterial()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Product -->
+<div class="modal-bg" id="prod-modal">
+  <div class="modal">
+    <h3 id="prod-modal-title">เพิ่มสินค้าสำเร็จรูป</h3>
+    <div class="form-row"><label>ชื่อสินค้า</label><input type="text" id="pf-name" placeholder="ชื่อสินค้า"></div>
+    <div class="divider"></div>
+    <div style="font-size:12px;color:var(--t2);margin-bottom:8px">สูตรวัตถุดิบ (BOM)</div>
+    <div class="bom-header"><span>วัตถุดิบ</span><span>จำนวน</span><span>หน่วย/หมายเหตุ</span><span></span></div>
+    <div id="bom-rows"></div>
+    <button class="btn btn-small" style="margin-bottom:14px" onclick="addBOMRow()">+ เพิ่มวัตถุดิบ</button>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal('prod-modal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="prod-save-btn" onclick="saveProduct()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://pahfjtmzytcokxmlblea.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhaGZqdG16eXRjb2t4bWxibGVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3NTQ5NTEsImV4cCI6MjA5MzMzMDk1MX0.dDhTJq4Y7jeMx8UXu8yB07xQE2M1pFC1eLzZW53aBis';
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const fmtB = n => (+n||0).toLocaleString('th-TH',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+let materials = [];
+let expenses = [];
+let products = [];
+let editingProdId = null;
+
+function showToast(msg, type='success'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast show '+type;
+  setTimeout(()=>t.className='toast',2500);
+}
+
+function setLoading(btnId, loading){
+  const b=document.getElementById(btnId);
+  if(!b) return;
+  b.disabled=loading;
+  b.textContent=loading?'กำลังบันทึก...':b.dataset.label||'บันทึก';
+}
+
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(name==='expenses') renderExpenses();
+  if(name==='materials') renderMaterials();
+  if(name==='products') renderProducts();
+}
+
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+
+// ===== EXPENSES =====
+async function loadExpenses(){
+  const {data,error}=await db.from('expenses').select('*').order('created_at');
+  if(error){showToast('โหลดค่าใช้จ่ายล้มเหลว','error');return}
+  expenses=data;
+}
+
+function renderExpenses(){
+  if(!expenses.length){
+    document.getElementById('exp-summary').innerHTML='';
+    document.getElementById('exp-months').innerHTML='<p style="color:var(--t3);text-align:center;padding:40px">ยังไม่มีรายการ กด + เพิ่มรายการ</p>';
+    return;
+  }
+  const months=[...new Set(expenses.map(e=>e.month))];
+  const grandTotal=expenses.reduce((s,e)=>s+(+e.total),0);
+  const byMonth={};
+  months.forEach(m=>{byMonth[m]=expenses.filter(e=>e.month===m).reduce((s,e)=>s+(+e.total),0)});
+
+  let sumHTML=`<div class="sum-card"><div class="sum-label">รวมทั้งสิ้น</div><div class="sum-value">${fmtB(grandTotal)}</div><div class="sum-sub">บาท</div></div>`;
+  months.forEach(m=>{sumHTML+=`<div class="sum-card"><div class="sum-label">${m}</div><div class="sum-value">${fmtB(byMonth[m])}</div><div class="sum-sub">บาท</div></div>`});
+  document.getElementById('exp-summary').innerHTML=sumHTML;
+
+  let html='';
+  months.forEach(m=>{
+    const rows=expenses.filter(e=>e.month===m);
+    const total=rows.reduce((s,e)=>s+(+e.total),0);
+    html+=`<div class="month-badge">${m}</div>`;
+    html+=`<table><thead><tr><th>วันที่</th><th>รายการ</th><th>ร้านค้า</th><th>จำนวน</th><th style="text-align:right">รวม (฿)</th><th></th></tr></thead><tbody>`;
+    rows.forEach(e=>{
+      html+=`<tr><td>${e.date}</td><td>${e.name}</td><td style="color:var(--t2)">${e.shop}</td><td style="color:var(--t2)">${e.qty}</td><td class="amt" style="text-align:right">${fmtB(e.total)}</td><td><button class="del-btn" onclick="delExpense('${e.id}')">✕</button></td></tr>`;
+    });
+    html+=`<tr class="total-row"><td colspan="4">รวม ${m}</td><td style="text-align:right">${fmtB(total)}</td><td></td></tr></tbody></table>`;
+  });
+  document.getElementById('exp-months').innerHTML=html;
+}
+
+function openExpModal(){
+  ['ef-date','ef-name','ef-shop','ef-qty','ef-total'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('exp-modal').classList.add('open');
+}
+
+async function saveExpense(){
+  const row={
+    date:document.getElementById('ef-date').value,
+    month:document.getElementById('ef-month').value,
+    name:document.getElementById('ef-name').value,
+    shop:document.getElementById('ef-shop').value,
+    qty:document.getElementById('ef-qty').value,
+    total:parseFloat(document.getElementById('ef-total').value)||0
+  };
+  if(!row.name||!row.total){alert('กรุณากรอกรายการและราคา');return}
+  setLoading('exp-save-btn',true);
+  const {error}=await db.from('expenses').insert(row);
+  setLoading('exp-save-btn',false);
+  if(error){showToast('บันทึกล้มเหลว: '+error.message,'error');return}
+  closeModal('exp-modal');
+  await loadExpenses();
+  renderExpenses();
+  showToast('บันทึกรายการแล้ว');
+}
+
+async function delExpense(id){
+  if(!confirm('ลบรายการนี้?')) return;
+  await db.from('expenses').delete().eq('id',id);
+  await loadExpenses();
+  renderExpenses();
+}
+
+// ===== MATERIALS =====
+async function loadMaterials(){
+  const {data,error}=await db.from('materials').select('*').order('created_at');
+  if(error){showToast('โหลดวัตถุดิบล้มเหลว','error');return}
+  materials=data;
+}
+
+function renderMaterials(){
+  document.getElementById('mat-tbody').innerHTML=materials.map((m,i)=>`
+    <tr>
+      <td>${m.name}</td>
+      <td><span style="background:var(--s3);padding:2px 8px;border-radius:4px;font-size:11px">${m.unit}</span></td>
+      <td><input type="number" step="0.01" value="${(+m.price).toFixed(2)}" style="width:110px;text-align:right" onchange="updateMatPrice('${m.id}',this.value)" class="mono"></td>
+      <td style="color:var(--t3);font-size:12px">${m.note||''}</td>
+      <td><button class="del-btn" onclick="delMaterial('${m.id}')">✕</button></td>
+    </tr>
+  `).join('');
+}
+
+function openMatModal(){
+  ['mf-name','mf-unit','mf-price','mf-note'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mat-modal').classList.add('open');
+}
+
+async function saveMaterial(){
+  const name=document.getElementById('mf-name').value;
+  const unit=document.getElementById('mf-unit').value;
+  const price=parseFloat(document.getElementById('mf-price').value)||0;
+  const note=document.getElementById('mf-note').value;
+  if(!name){alert('กรุณากรอกชื่อวัตถุดิบ');return}
+  setLoading('mat-save-btn',true);
+  const {error}=await db.from('materials').insert({name,unit,price,note});
+  setLoading('mat-save-btn',false);
+  if(error){showToast('บันทึกล้มเหลว: '+error.message,'error');return}
+  closeModal('mat-modal');
+  await loadMaterials();
+  renderMaterials();
+  showToast('เพิ่มวัตถุดิบแล้ว');
+}
+
+async function updateMatPrice(id,val){
+  await db.from('materials').update({price:parseFloat(val)||0}).eq('id',id);
+  await loadMaterials();
+  renderProducts();
+}
+
+async function delMaterial(id){
+  if(!confirm('ลบวัตถุดิบนี้?')) return;
+  await db.from('materials').delete().eq('id',id);
+  await loadMaterials();
+  renderMaterials();
+  renderProducts();
+}
+
+// ===== PRODUCTS =====
+function calcProductCost(bom){
+  return (bom||[]).reduce((s,b)=>{
+    const m=materials.find(x=>x.id===b.matId);
+    return s+(m?+m.price*b.qty:0);
+  },0);
+}
+
+async function loadProducts(){
+  const {data,error}=await db.from('products').select('*').order('created_at');
+  if(error){showToast('โหลดสินค้าล้มเหลว','error');return}
+  products=data;
+}
+
+function renderProducts(){
+  const list=document.getElementById('prod-list');
+  if(!products.length){list.innerHTML='<p style="color:var(--t3);text-align:center;padding:40px">ยังไม่มีสินค้า กด + เพิ่มสินค้า</p>';return}
+  list.innerHTML=products.map(p=>{
+    const total=calcProductCost(p.bom);
+    const rows=(p.bom||[]).map(b=>{
+      const m=materials.find(x=>x.id===b.matId);
+      const cost=(m?+m.price*b.qty:0);
+      return `<tr><td>${m?m.name:b.matId}</td><td style="color:var(--t2);font-size:12px">${b.label} × ${m?(+m.price).toFixed(2):'?'} ฿/${m?m.unit:''}</td><td class="amt">${fmtB(cost)}</td></tr>`;
+    }).join('');
+    return `<div class="product-card">
+      <div class="product-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="tag tag-gold">${p.name}</span>
+          <span style="color:var(--t2);font-size:12px">ต้นทุน 1 ชิ้น</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="cost-big">${fmtB(total)} ฿</span>
+          <button class="btn btn-small" onclick="openEditProd('${p.id}')">แก้ไข</button>
+          <button class="del-btn" onclick="delProduct('${p.id}')">✕</button>
+        </div>
+      </div>
+      <div class="product-body">
+        <table class="bom-table">
+          <thead><tr><th>วัตถุดิบ</th><th>รายละเอียด</th><th>ราคา (฿)</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="bom-total">
+          <span style="font-weight:600">รวมต้นทุนวัตถุดิบ</span>
+          <span class="cost-big">${fmtB(total)} ฿</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openProdModal(){
+  editingProdId=null;
+  document.getElementById('prod-modal-title').textContent='เพิ่มสินค้าสำเร็จรูป';
+  document.getElementById('pf-name').value='';
+  document.getElementById('bom-rows').innerHTML='';
+  addBOMRow();
+  document.getElementById('prod-modal').classList.add('open');
+}
+
+function openEditProd(id){
+  editingProdId=id;
+  const p=products.find(x=>x.id===id);
+  document.getElementById('prod-modal-title').textContent='แก้ไข: '+p.name;
+  document.getElementById('pf-name').value=p.name;
+  document.getElementById('bom-rows').innerHTML='';
+  (p.bom||[]).forEach(b=>addBOMRow(b));
+  document.getElementById('prod-modal').classList.add('open');
+}
+
+function addBOMRow(data){
+  const div=document.createElement('div');
+  div.className='bom-add-row';
+  const matOpts=materials.map(m=>`<option value="${m.id}" ${data&&data.matId===m.id?'selected':''}>${m.name} (${m.unit})</option>`).join('');
+  div.innerHTML=`
+    <select class="bom-mat">${matOpts}</select>
+    <input type="number" class="bom-qty" placeholder="จำนวน" step="0.001" value="${data?data.qty:''}" style="text-align:right">
+    <input type="text" class="bom-label" placeholder="หน่วย/หมายเหตุ" value="${data?data.label:''}">
+    <button class="del-btn" onclick="this.parentElement.remove()">✕</button>
+  `;
+  document.getElementById('bom-rows').appendChild(div);
+}
+
+async function saveProduct(){
+  const name=document.getElementById('pf-name').value.trim();
+  if(!name){alert('กรุณากรอกชื่อสินค้า');return}
+  const rows=document.querySelectorAll('#bom-rows .bom-add-row');
+  const bom=[];
+  rows.forEach(r=>{
+    const matId=r.querySelector('.bom-mat').value;
+    const qty=parseFloat(r.querySelector('.bom-qty').value)||0;
+    const label=r.querySelector('.bom-label').value;
+    if(matId&&qty>0) bom.push({matId,qty,label});
+  });
+  if(!bom.length){alert('กรุณาเพิ่มวัตถุดิบอย่างน้อย 1 รายการ');return}
+  setLoading('prod-save-btn',true);
+  let error;
+  if(editingProdId){
+    ({error}=await db.from('products').update({name,bom}).eq('id',editingProdId));
+  } else {
+    ({error}=await db.from('products').insert({name,bom}));
+  }
+  setLoading('prod-save-btn',false);
+  if(error){showToast('บันทึกล้มเหลว: '+error.message,'error');return}
+  closeModal('prod-modal');
+  await loadProducts();
+  renderProducts();
+  showToast(editingProdId?'แก้ไขสินค้าแล้ว':'เพิ่มสินค้าแล้ว');
+}
+
+async function delProduct(id){
+  if(!confirm('ลบสินค้านี้?')) return;
+  await db.from('products').delete().eq('id',id);
+  await loadProducts();
+  renderProducts();
+}
+
+document.querySelectorAll('.modal-bg').forEach(m=>{
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')});
+});
+
+// Init
+(async()=>{
+  await Promise.all([loadExpenses(),loadMaterials(),loadProducts()]);
+  renderExpenses();
+})();
+</script>
+</body>
+</html>
