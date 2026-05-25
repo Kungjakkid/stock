@@ -67,8 +67,12 @@ select option{background:var(--s2)}
 .sum-value{font-size:20px;font-weight:700;font-family:'IBM Plex Mono',monospace;color:var(--gold)}
 .sum-sub{font-size:11px;color:var(--t3);margin-top:3px}
 .product-card{background:var(--s1);border:1px solid var(--b1);border-radius:12px;margin-bottom:14px;overflow:hidden}
-.product-header{padding:14px 16px;background:var(--s2);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--b1);cursor:pointer}
-.product-body{padding:0}
+.product-header{padding:14px 16px;background:var(--s2);display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--b1);cursor:pointer;user-select:none}
+.product-header:hover{background:var(--s3)}
+.product-body{padding:0;overflow:hidden;transition:max-height .25s ease}
+.product-body.collapsed{max-height:0!important}
+.chevron{font-size:12px;color:var(--t3);transition:transform .25s;display:inline-block}
+.chevron.open{transform:rotate(180deg)}
 .bom-table{width:100%;border-collapse:collapse}
 .bom-table td{padding:8px 14px;border-bottom:1px solid var(--b1);font-size:13px}
 .bom-table tr:last-child td{border-bottom:none}
@@ -425,18 +429,19 @@ function renderProducts(){
       return `<tr><td>${m?m.name:b.matId}</td><td style="color:var(--t2);font-size:12px">${b.label} × ${m?(+m.price).toFixed(2):'?'} ฿/${m?m.unit:''}</td><td class="amt">${fmtB(cost)}</td></tr>`;
     }).join('');
     return `<div class="product-card">
-      <div class="product-header">
+      <div class="product-header" onclick="toggleProduct('body-${p.id}')">
         <div style="display:flex;align-items:center;gap:10px">
+          <span class="chevron open" id="chev-${p.id}">▼</span>
           <span class="tag tag-gold">${p.name}</span>
-          <span style="color:var(--t2);font-size:12px">ต้นทุน 1 ชิ้น</span>
+          <span style="color:var(--t2);font-size:12px">${(p.bom||[]).length} รายการ</span>
         </div>
-        <div style="display:flex;align-items:center;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px" onclick="event.stopPropagation()">
           <span class="cost-big">${fmtB(total)} ฿</span>
           <button class="btn btn-small" onclick="openEditProd('${p.id}')">แก้ไข</button>
           <button class="del-btn" onclick="delProduct('${p.id}')">✕</button>
         </div>
       </div>
-      <div class="product-body">
+      <div class="product-body" id="body-${p.id}" style="max-height:600px">
         <table class="bom-table">
           <thead><tr><th>วัตถุดิบ</th><th>รายละเอียด</th><th>ราคา (฿)</th></tr></thead>
           <tbody>${rows}</tbody>
@@ -514,6 +519,14 @@ async function delProduct(id){
   await db.from('products').delete().eq('id',id);
   await loadProducts();
   renderProducts();
+}
+
+function toggleProduct(bodyId){
+  const body=document.getElementById(bodyId);
+  const id=bodyId.replace('body-','');
+  const chev=document.getElementById('chev-'+id);
+  const collapsed=body.classList.toggle('collapsed');
+  chev.classList.toggle('open',!collapsed);
 }
 
 function openLightbox(url){
