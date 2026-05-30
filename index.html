@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#f4f2ee">
+<title>ระบบต้นทุนสินค้า</title>
+<script>
+  // apply theme before paint to avoid flash
+  (function(){try{var t=localStorage.getItem('cost-theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
+</script>
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs" type="module"></script>
+<script type="module">
+  import * as pdfjsLib from 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.worker.min.mjs';
+  window.pdfjsLib = pdfjsLib;
+</script>
+</head>
+<body>
+
+<!-- ===== SVG icon defs ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-dash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></symbol>
+    <symbol id="i-expense" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a2 2 0 0 1 2 2v15l-3-2-2 2-2-2-2 2-2-2-3 2V6a2 2 0 0 1 2-2z"/><path d="M8 8h6M8 11.5h6M8 15h3"/></symbol>
+    <symbol id="i-material" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v5.5L5.2 17a2 2 0 0 0 1.8 3h10a2 2 0 0 0 1.8-3L14 8.5V3"/><path d="M7.5 14h9"/></symbol>
+    <symbol id="i-product" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></symbol>
+    <symbol id="i-ship" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h11v8H3z"/><path d="M14 10h4l3 3v2h-7z"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></symbol>
+    <symbol id="i-cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></symbol>
+    <symbol id="i-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/></symbol>
+    <symbol id="i-trend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 7-7"/><path d="M17 8h4v4"/></symbol>
+    <symbol id="i-coin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5a2.5 2 0 0 1 5 0c0 1.4-2.5 1.5-2.5 2.5s2.5 1.1 2.5 2.5a2.5 2 0 0 1-5 0"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/></symbol>
+  </defs>
+</svg>
+
+<div class="app">
+
+  <!-- ===== Sidebar (desktop) ===== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="logo">KJ</div>
+      <div class="brand-text"><h1>ระบบต้นทุนสินค้า</h1><p>วัตถุดิบ · สูตร · ส่งออก</p></div>
+    </div>
+    <button class="side-link active" data-page="dashboard" onclick="showPage('dashboard',this)"><svg><use href="#i-dash"/></svg> ภาพรวม</button>
+    <button class="side-link" data-page="expenses" onclick="showPage('expenses',this)"><svg><use href="#i-expense"/></svg> ค่าใช้จ่าย</button>
+    <button class="side-link" data-page="materials" onclick="showPage('materials',this)"><svg><use href="#i-material"/></svg> วัตถุดิบ</button>
+    <button class="side-link" data-page="products" onclick="showPage('products',this)"><svg><use href="#i-product"/></svg> สินค้า</button>
+    <button class="side-link" data-page="shipments" onclick="showPage('shipments',this)"><svg><use href="#i-ship"/></svg> ส่งออก</button>
+    <div class="side-foot">
+      <span>v2 · KJ</span>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" title="สลับธีม" style="width:34px;height:34px">
+        <svg class="sun"><use href="#i-sun"/></svg><svg class="moon"><use href="#i-moon"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <!-- ===== Top bar (mobile) ===== -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">KJ</div>
+        <div class="brand-text"><h1 id="topbar-title">ภาพรวม</h1><p>ระบบต้นทุนสินค้า</p></div>
+      </div>
+      <div class="topbar-spacer"></div>
+      <button class="icon-btn theme-toggle" onclick="toggleTheme()" aria-label="สลับธีม">
+        <svg class="sun"><use href="#i-sun"/></svg><svg class="moon"><use href="#i-moon"/></svg>
+      </button>
+    </header>
+
+    <!-- ===== DASHBOARD ===== -->
+    <section id="page-dashboard" class="page active">
+      <div class="page-head">
+        <div><div class="page-title">ภาพรวม</div><div class="page-sub" id="dash-sub">สรุปต้นทุนและการส่งออก</div></div>
+      </div>
+      <div id="dash-content"><div class="loading">กำลังโหลด...</div></div>
+    </section>
+
+    <!-- ===== EXPENSES ===== -->
+    <section id="page-expenses" class="page">
+      <div class="page-head">
+        <div><div class="page-title">ค่าใช้จ่าย</div><div class="page-sub">วัตถุดิบ · ของใช้ · บิลรายเดือน</div></div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm" onclick="openPdfModal()"><svg><use href="#i-doc"/></svg> PDF</button>
+          <button class="btn btn-primary btn-sm" onclick="openExpModal()"><svg><use href="#i-plus"/></svg> เพิ่ม</button>
+        </div>
+      </div>
+      <div class="stat-grid" id="exp-summary"></div>
+      <div class="chips" id="exp-month-filter"></div>
+      <div id="exp-list"><div class="loading">กำลังโหลด...</div></div>
+    </section>
+
+    <!-- ===== MATERIALS ===== -->
+    <section id="page-materials" class="page">
+      <div class="page-head">
+        <div><div class="page-title">วัตถุดิบ</div><div class="page-sub">ซื้อยกล็อต → แบ่งย่อยขาย · คำนวณ ฿/หน่วย ให้</div></div>
+        <button class="btn btn-primary btn-sm" onclick="openMatModal()"><svg><use href="#i-plus"/></svg> เพิ่ม</button>
+      </div>
+      <div id="mat-list"><div class="loading">กำลังโหลด...</div></div>
+    </section>
+
+    <!-- ===== PRODUCTS ===== -->
+    <section id="page-products" class="page">
+      <div class="page-head">
+        <div><div class="page-title">สินค้าสำเร็จรูป</div><div class="page-sub">สูตรวัตถุดิบ (BOM) · ต้นทุนต่อชิ้น</div></div>
+        <button class="btn btn-primary btn-sm" onclick="openProdModal()"><svg><use href="#i-plus"/></svg> เพิ่ม</button>
+      </div>
+      <div id="prod-list"><div class="loading">กำลังโหลด...</div></div>
+    </section>
+
+    <!-- ===== SHIPMENTS ===== -->
+    <section id="page-shipments" class="page">
+      <div class="page-head">
+        <div><div class="page-title">ส่งออก</div><div class="page-sub">ออเดอร์รายวัน · ต้นทุนต่อแพลตฟอร์ม</div></div>
+        <button class="btn btn-primary btn-sm" onclick="openShipPdfModal()"><svg><use href="#i-doc"/></svg> นำเข้า PDF</button>
+      </div>
+      <div class="pf-tabs" id="ship-tabs">
+        <button class="pf-tab active" data-pf="lazada" onclick="setPlatform('lazada')"><span class="pf-dot" style="background:var(--plat-lazada)"></span> Lazada</button>
+        <button class="pf-tab" data-pf="shopee" onclick="setPlatform('shopee')"><span class="pf-dot" style="background:var(--plat-shopee)"></span> Shopee</button>
+        <button class="pf-tab" data-pf="tiktok" onclick="setPlatform('tiktok')"><span class="pf-dot" style="background:var(--plat-tiktok)"></span> TikTok</button>
+      </div>
+      <div class="chips" id="ship-date-filter"></div>
+      <div class="stat-grid" id="ship-summary"></div>
+      <div id="ship-days"><div class="loading">กำลังโหลด...</div></div>
+    </section>
+  </div>
+</div>
+
+<!-- ===== Bottom nav (mobile) ===== -->
+<nav class="botnav">
+  <button class="active" data-page="dashboard" onclick="showPage('dashboard',this)"><svg><use href="#i-dash"/></svg>ภาพรวม</button>
+  <button data-page="expenses" onclick="showPage('expenses',this)"><svg><use href="#i-expense"/></svg>ค่าใช้จ่าย</button>
+  <button data-page="materials" onclick="showPage('materials',this)"><svg><use href="#i-material"/></svg>วัตถุดิบ</button>
+  <button data-page="products" onclick="showPage('products',this)"><svg><use href="#i-product"/></svg>สินค้า</button>
+  <button data-page="shipments" onclick="showPage('shipments',this)"><svg><use href="#i-ship"/></svg>ส่งออก</button>
+</nav>
+
+<!-- ===================== MODALS ===================== -->
+
+<!-- Expense -->
+<div class="modal-bg" id="exp-modal">
+  <div class="modal">
+    <h3>เพิ่มรายการค่าใช้จ่าย</h3>
+    <div class="field-2">
+      <div><label class="fl">วันที่</label><input type="text" id="ef-date" placeholder="01/04/69"></div>
+      <div><label class="fl">เดือน/ปี</label>
+        <select id="ef-month">
+          <option value="เมษายน 2569">เมษายน 2569</option>
+          <option value="พฤษภาคม 2569">พฤษภาคม 2569</option>
+          <option value="มิถุนายน 2569">มิถุนายน 2569</option>
+          <option value="กรกฎาคม 2569">กรกฎาคม 2569</option>
+          <option value="สิงหาคม 2569">สิงหาคม 2569</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label class="fl">รายการ</label><input type="text" id="ef-name" placeholder="ชื่อสินค้า/วัตถุดิบ"></div>
+    <div class="field"><label class="fl">ร้านค้า</label><input type="text" id="ef-shop" placeholder="ชื่อร้าน"></div>
+    <div class="field-2">
+      <div><label class="fl">จำนวน + หน่วย</label><input type="text" id="ef-qty" placeholder="500 ใบ / 5kg" oninput="updateExpVatPreview()"></div>
+      <div><label class="fl">ราคาก่อน VAT (฿)</label><input type="number" class="num" id="ef-total" placeholder="0.00" step="0.01" oninput="updateExpVatPreview()"></div>
+    </div>
+    <div class="vat-box">
+      <label class="checkbox"><input type="checkbox" id="ef-vat" onchange="updateExpVatPreview()"> บวก VAT 7%</label>
+      <div class="calc">รวมสุทธิ <span class="mono pos" id="ef-net" style="font-weight:700">0.00</span> ฿ · ฿/kg <span class="mono" style="color:var(--blue)" id="ef-ppk">–</span></div>
+    </div>
+    <div class="field">
+      <label class="fl">รูปภาพ (ใบเสร็จ/สลิป)</label>
+      <div id="img-drop-zone" class="dropzone" onclick="document.getElementById('ef-image').click()">
+        <div id="img-preview-wrap" style="display:none"><img id="img-preview" style="max-height:160px;max-width:100%;border-radius:10px;object-fit:contain"></div>
+        <div id="img-placeholder"><svg><use href="#i-cam"/></svg>คลิกหรือลากรูปมาวางที่นี่</div>
+      </div>
+      <input type="file" id="ef-image" accept="image/*" style="display:none" onchange="previewImage(this);showOcrBtn()">
+      <button class="btn btn-sm btn-block" id="ocr-btn" style="display:none;margin-top:9px" onclick="readReceiptOCR()"><svg><use href="#i-spark"/></svg> อ่านข้อความจากรูปด้วย AI</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('exp-modal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="exp-save-btn" onclick="saveExpense()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Material -->
+<div class="modal-bg" id="mat-modal">
+  <div class="modal">
+    <h3 id="mat-modal-title">เพิ่มวัตถุดิบ</h3>
+    <div class="field"><label class="fl">ชื่อวัตถุดิบ</label><input type="text" id="mf-name" placeholder="ชื่อวัตถุดิบ"></div>
+    <div class="field"><label class="fl">ร้าน / แหล่งซื้อ</label><input type="text" id="mf-shop" placeholder="เช่น KS เคมิคอลส์"></div>
+    <div class="eyebrow" style="margin:2px 0 10px">ซื้อยกล็อต → แบ่งย่อยขาย</div>
+    <div class="field-2">
+      <div><label class="fl">ซื้อมาทั้งหมด (จำนวน)</label><input type="number" class="num" id="mf-buyqty" placeholder="35" step="0.001" oninput="updateMatPreview()"></div>
+      <div><label class="fl">หน่วยย่อย</label><input type="text" id="mf-unit" placeholder="kg / ใบ / ถุง" oninput="updateMatPreview()"></div>
+    </div>
+    <div class="field"><label class="fl">ราคารวมที่จ่าย (฿)</label><input type="number" class="num" id="mf-buytotal" placeholder="1000" step="0.01" oninput="updateMatPreview()"></div>
+    <div class="vat-box" style="flex-direction:column;align-items:stretch;gap:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <label class="fl" style="margin:0">ราคา/หน่วย (ปรับเองได้)</label>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="number" class="num price-input" id="mf-price" step="0.01" placeholder="0.00" style="width:120px;text-align:right">
+          <span class="muted" style="font-size:12.5px;white-space:nowrap">฿/<span id="mf-unit-echo">หน่วย</span></span>
+        </div>
+      </div>
+      <div class="muted" id="mf-calc-hint" style="font-size:12px"></div>
+    </div>
+    <div class="field"><label class="fl">หมายเหตุ (ยี่ห้อ / เกรด ฯลฯ)</label><input type="text" id="mf-note" placeholder="หมายเหตุเพิ่มเติม"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('mat-modal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="mat-save-btn" onclick="saveMaterial()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Product -->
+<div class="modal-bg" id="prod-modal">
+  <div class="modal">
+    <h3 id="prod-modal-title">เพิ่มสินค้าสำเร็จรูป</h3>
+    <div class="field-2">
+      <div><label class="fl">ชื่อสินค้า (ภายใน)</label><input type="text" id="pf-name" placeholder="ชื่อสินค้า"></div>
+      <div><label class="fl">SKU (Seller SKU)</label><input type="text" id="pf-sku" placeholder="เช่น 0001, 0008"></div>
+    </div>
+    <details class="platnames">
+      <summary>ชื่อตามแต่ละแพลตฟอร์ม (ไม่บังคับ)</summary>
+      <div class="inner">
+        <div class="field"><label class="fl" style="color:var(--plat-lazada)">Lazada</label><input type="text" id="pf-lazada" placeholder="ชื่อในร้าน Lazada"></div>
+        <div class="field"><label class="fl" style="color:var(--plat-shopee)">Shopee</label><input type="text" id="pf-shopee" placeholder="ชื่อในร้าน Shopee"></div>
+        <div class="field"><label class="fl">TikTok</label><input type="text" id="pf-tiktok" placeholder="ชื่อในร้าน TikTok"></div>
+      </div>
+    </details>
+    <div class="eyebrow" style="margin-bottom:10px">สูตรวัตถุดิบ (BOM)</div>
+    <div class="bom-edit-head"><span>วัตถุดิบ</span><span>จำนวน</span><span>หน่วย/หมายเหตุ</span><span>VAT</span><span></span></div>
+    <div id="bom-rows"></div>
+    <button class="btn btn-sm" style="margin-bottom:6px" onclick="addBOMRow()"><svg><use href="#i-plus"/></svg> เพิ่มวัตถุดิบ</button>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('prod-modal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="prod-save-btn" onclick="saveProduct()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- PDF Import (expenses) -->
+<div class="modal-bg" id="pdf-modal">
+  <div class="modal wide">
+    <h3>นำเข้าค่าใช้จ่ายจากใบเสร็จ PDF</h3>
+    <div class="field-2">
+      <div><label class="fl">วันที่ (ถ้าว่าง AI อ่านเอง)</label><input type="text" id="pf-date" placeholder="01/04/69"></div>
+      <div><label class="fl">เดือน/ปี</label>
+        <select id="pf-month">
+          <option value="เมษายน 2569">เมษายน 2569</option>
+          <option value="พฤษภาคม 2569">พฤษภาคม 2569</option>
+          <option value="มิถุนายน 2569">มิถุนายน 2569</option>
+          <option value="กรกฎาคม 2569">กรกฎาคม 2569</option>
+          <option value="สิงหาคม 2569">สิงหาคม 2569</option>
+        </select>
+      </div>
+    </div>
+    <div class="field-2">
+      <div>
+        <label class="fl">ใบเสร็จ/ใบกำกับ (PDF หรือ รูป)</label>
+        <div id="pdf-drop" class="dropzone" onclick="document.getElementById('pf-pdf').click()">
+          <div id="pdf-info"><svg><use href="#i-doc"/></svg>คลิก/ลากไฟล์มาวาง</div>
+        </div>
+        <input type="file" id="pf-pdf" accept="application/pdf,image/*" style="display:none" onchange="onPdfPick()">
+      </div>
+      <div>
+        <label class="fl">สลิปโอนเงิน (แนบทุกแถว)</label>
+        <div id="slip-drop" class="dropzone" onclick="document.getElementById('pf-slip').click()">
+          <div id="slip-info"><svg><use href="#i-upload"/></svg>คลิก/ลากสลิปมาวาง</div>
+          <img id="slip-preview" style="display:none;max-height:120px;border-radius:10px;margin-top:8px">
+        </div>
+        <input type="file" id="pf-slip" accept="image/*" style="display:none" onchange="onSlipPick()">
+      </div>
+    </div>
+    <button class="btn btn-primary btn-block" id="pdf-analyze-btn" style="margin:6px 0 14px" onclick="analyzePdf()"><svg><use href="#i-spark"/></svg> วิเคราะห์ด้วย AI</button>
+    <div id="pdf-items-wrap" style="display:none">
+      <div class="eyebrow" style="margin-bottom:8px">รายการที่ AI อ่านได้ — แก้ไขก่อนบันทึก</div>
+      <div class="tablescroll">
+        <table class="dtable">
+          <thead><tr><th>รายการ</th><th>ร้าน</th><th>จำนวน+หน่วย</th><th>ก่อน VAT</th><th>VAT</th><th>สุทธิ</th><th>฿/kg</th><th></th></tr></thead>
+          <tbody id="pdf-items"></tbody>
+        </table>
+      </div>
+      <div class="imp-summary">
+        <button class="btn btn-sm" onclick="addPdfRow()"><svg><use href="#i-plus"/></svg> เพิ่มแถว</button>
+        <span>รวม <span class="mono pos" id="pdf-grand" style="font-weight:700">0.00</span> ฿</span>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('pdf-modal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="pdf-save-btn" onclick="savePdfRows()" style="display:none">บันทึกทั้งหมด</button>
+    </div>
+  </div>
+</div>
+
+<!-- Shipment PDF Import -->
+<div class="modal-bg" id="ship-pdf-modal">
+  <div class="modal wide">
+    <h3 id="ship-pdf-title">นำเข้าออเดอร์จาก PDF</h3>
+    <div class="field">
+      <div id="ship-pdf-drop" class="dropzone" onclick="document.getElementById('ship-pdf-file').click()">
+        <div id="ship-pdf-info"><svg><use href="#i-doc"/></svg>คลิก/ลากไฟล์ PDF ใบปะหน้าพัสดุ (หลายออเดอร์ในไฟล์เดียว)</div>
+      </div>
+      <input type="file" id="ship-pdf-file" accept="application/pdf" style="display:none" onchange="onShipPdfPick()">
+    </div>
+    <div class="field"><label class="fl">วันส่ง (ใช้กับทุกออเดอร์ — default = วันนี้)</label><input type="date" id="ship-date-input"></div>
+    <button class="btn btn-primary btn-block" id="ship-analyze-btn" style="margin-bottom:12px" onclick="analyzeShipPdf()"><svg><use href="#i-spark"/></svg> วิเคราะห์ด้วย AI</button>
+    <div id="ship-progress" class="progress-txt" style="display:none"></div>
+    <div id="ship-items-wrap" style="display:none">
+      <div class="eyebrow" style="margin-bottom:8px">ออเดอร์ที่อ่านได้ — match SKU เพื่อคำนวณต้นทุน</div>
+      <div class="tablescroll">
+        <table class="dtable">
+          <thead><tr><th>Order ID</th><th>SKU</th><th>สินค้า</th><th>จำนวน</th><th>ผู้รับ</th><th>จังหวัด</th><th>match → สินค้า</th><th>ต้นทุน</th><th></th></tr></thead>
+          <tbody id="ship-items"></tbody>
+        </table>
+      </div>
+      <div class="imp-summary">
+        <span>ออเดอร์: <span class="mono" id="ship-count">0</span></span>
+        <span>รวมต้นทุน <span class="mono pos" id="ship-grand" style="font-weight:700">0.00</span> ฿</span>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('ship-pdf-modal')">ยกเลิก</button>
+      <button class="btn btn-primary" id="ship-save-btn" onclick="saveShipRows()" style="display:none">บันทึกทั้งหมด</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="tdot"></span><span id="toast-msg"></span></div>
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('open')"><img id="lightbox-img" alt=""></div>
+
+<script src="js/app.js"></script>
+<script src="js/shipments.js"></script>
+</body>
+</html>
