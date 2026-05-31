@@ -519,7 +519,7 @@ details.platnames .inner{margin-top:12px}
 
 /* BOM editor rows in modal */
 .bom-edit-head,.bom-edit-row{
-  display:grid;grid-template-columns:1fr 76px 1fr 44px 36px;gap:7px;align-items:center;
+  display:grid;grid-template-columns:1fr 84px 72px 96px 40px 32px;gap:7px;align-items:center;
 }
 .bom-edit-head{margin-bottom:6px}
 .bom-edit-head span{font-size:11px;color:var(--text-3);padding:0 2px}
@@ -545,6 +545,90 @@ details.platnames .inner{margin-top:12px}
 .dtable input,.dtable select{padding:7px 9px;font-size:12.5px;border-radius:8px}
 .dtable .matched{background:var(--green-soft)}
 .dtable .unmatched{background:var(--red-soft)}
+.dtable tr.dup{background:var(--amber-soft,rgba(217,138,0,.12));opacity:.7}
+.dup-badge{display:inline-block;margin-left:6px;font-size:10px;font-weight:700;color:#fff;background:var(--amber,#d98a00);padding:1px 6px;border-radius:6px;vertical-align:middle}
+/* ตารางสูตร BOM ในหน้าสินค้า */
+.bom-table-wrap{overflow-x:auto;padding:4px 0}
+.bom-dtable{min-width:520px}
+.mat-dtable{min-width:380px}
+.mat-dtable td{padding:8px 10px}
+.mat-dtable .mat-i{width:28px;text-align:center;color:var(--text-3)}
+.mat-dtable .mat-nm{display:flex;align-items:center;gap:9px}
+.mat-dtable .mat-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.mat-dtable .mat-nmwrap{min-width:0}
+.mat-dtable .mat-nm .nm{font-weight:600;font-size:13.5px}
+.mat-dtable .mat-nm .sub{font-size:11px;color:var(--text-3);margin-top:1px}
+.mat-dtable .mat-pr{white-space:nowrap}
+.mat-dtable .mat-pr .price-input{width:78px;padding:6px 8px;font-size:12.5px;text-align:right}
+.mat-dtable .mat-pr .u{color:var(--text-3);font-size:11px;margin-left:5px}
+.mat-dtable .mat-kg{text-align:right;color:var(--blue);white-space:nowrap}
+.mat-dtable .mat-kg .ku{color:var(--text-3);font-size:10px}
+.mat-dtable .mat-act{white-space:nowrap;text-align:right}
+.mat-dtable .mat-act .icon-btn{width:30px;height:30px;display:inline-flex}
+.mat-dtable .mat-act .icon-x{display:inline-flex;vertical-align:middle;margin-left:3px}
+.mat-dtable .mat-act .icon-btn svg{width:15px;height:15px}
+/* ตารางราคาซื้อ */
+.buy-dtable{min-width:600px}
+.buy-dtable td{padding:9px 10px;vertical-align:middle}
+.buy-dtable .nm{font-weight:600;font-size:13.5px}
+.buy-dtable .sub{font-size:11px;color:var(--text-3);margin-top:1px}
+.buy-dtable .buy-last{white-space:nowrap;color:var(--text-2);font-size:12.5px}
+.buy-dtable .mat-pr{white-space:nowrap}
+.buy-dtable .mat-pr .price-input{width:84px;padding:6px 8px;font-size:12.5px;text-align:right}
+.buy-dtable .mat-pr .u{color:var(--text-3);font-size:11px;margin-left:5px}
+.buy-dtable .buy-calc{white-space:nowrap}
+.buy-dtable .calc-qty{width:62px;padding:6px 8px;font-size:12.5px;text-align:right}
+.buy-dtable .calc-unit{width:78px;min-width:78px;padding:6px 8px;font-size:12.5px;border-radius:8px}
+.buy-dtable .calc-eq{margin:0 7px;color:var(--text-3)}
+.buy-dtable .calc-out{font-weight:700;color:var(--accent);font-size:14px}
+.buy-dtable .calc-baht{color:var(--text-3);font-size:11px;margin-left:3px}
+.buy-dtable .mat-act{white-space:nowrap;text-align:right}
+/* ตารางสรุปรายวันส่งออก */
+.ship-od-table{min-width:480px}
+.ship-od-table td{padding:8px 10px}
+.ship-od-table .ship-od{font-weight:600;font-size:12.5px;white-space:nowrap}
+.ship-od-table .ship-today{background:color-mix(in srgb, var(--accent) 9%, transparent)}
+.ship-od-table .ship-today .ship-od{color:var(--accent)}
+/* ตารางส่งออก */
+.ship-dtable{min-width:560px}
+.ship-dtable td{padding:8px 10px;vertical-align:middle}
+.ship-dtable .ship-i{width:28px;text-align:center;color:var(--text-3)}
+.ship-dtable .ship-nm .nm{font-weight:600;font-size:13.5px}
+.ship-dtable .ship-nm .sub{font-size:11px;color:var(--text-3);margin-top:1px}
+.ship-dtable .ship-oid{font-size:11px;color:var(--text-3);white-space:nowrap}
+.ship-dtable .ship-qty{text-align:right;color:var(--text-2)}
+.ship-dtable .ship-cost{text-align:right;font-weight:700;font-size:13.5px}
+.ship-dtable .ship-cost.zero{color:var(--text-3);font-weight:500}
+.ship-dtable .ship-warn{color:var(--amber,#d98a00);cursor:help}
+.ship-dtable .ship-act{text-align:right;white-space:nowrap}
+.ship-dtable tfoot td{border-top:2px solid var(--border);background:var(--surface-2);padding:10px}
+/* ตารางค่าใช้จ่าย */
+.exp-dtable{min-width:560px}
+.exp-dtable td{padding:7px 10px;vertical-align:middle}
+.exp-dtable .exp-nm .nm{font-weight:600;font-size:13.5px}
+.exp-dtable .exp-nm .sub{font-size:11px;color:var(--text-3);margin-top:1px}
+.exp-dtable .exp-qty{color:var(--text-2);font-size:12px;white-space:nowrap}
+.exp-dtable .exp-kg{text-align:right;color:var(--blue)}
+.exp-dtable .exp-vat{text-align:center}
+.exp-dtable .exp-amt{text-align:right;font-weight:700;font-size:13.5px}
+.exp-dtable .exp-act{white-space:nowrap;text-align:right}
+.exp-dtable .exp-thumb{width:26px;height:26px;border-radius:6px;object-fit:cover;cursor:pointer;vertical-align:middle;margin-left:3px;border:1px solid var(--border)}
+.exp-dtable .exp-act .icon-x{display:inline-flex;vertical-align:middle;margin-left:4px}
+.exp-dtable .exp-kg-col{text-align:right;color:var(--text-2)}
+.exp-dtable tfoot td{border-top:2px solid var(--border);background:var(--surface-2);padding:10px}
+/* บิลแยกใบ */
+.bill{border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:14px;background:var(--surface)}
+.bill-head{display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--surface-2);border-bottom:1px solid var(--border)}
+.bill-info{flex:1;min-width:0}
+.bill-shop{font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bill-meta{font-size:11.5px;color:var(--text-3);margin-top:2px}
+.bill-thumbs{display:flex;gap:4px;flex-shrink:0}
+.bill-thumbs .exp-thumb{width:34px;height:34px;border-radius:7px;object-fit:cover;cursor:pointer;border:1px solid var(--border)}
+.bill-total{font-family:var(--mono);font-weight:700;font-size:16px;color:var(--accent);white-space:nowrap}
+.bill-total span{font-size:11px;color:var(--text-3)}
+.bill .bom-table-wrap{padding:0}
+.bill .exp-dtable{min-width:520px}
+.bom-dtable tfoot td{border-top:2px solid var(--border);border-bottom:none;background:var(--surface-2);padding:11px 10px;font-size:13px}
 
 .imp-summary{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;color:var(--text-2)}
 .progress-txt{text-align:center;font-size:12.5px;color:var(--text-2);padding:8px;background:var(--surface-2);border-radius:10px;margin-bottom:10px}

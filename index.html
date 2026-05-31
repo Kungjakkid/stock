@@ -55,6 +55,7 @@
     <button class="side-link active" data-page="dashboard" onclick="showPage('dashboard',this)"><svg><use href="#i-dash"/></svg> ภาพรวม</button>
     <button class="side-link" data-page="expenses" onclick="showPage('expenses',this)"><svg><use href="#i-expense"/></svg> ค่าใช้จ่าย</button>
     <button class="side-link" data-page="materials" onclick="showPage('materials',this)"><svg><use href="#i-material"/></svg> วัตถุดิบ</button>
+    <button class="side-link" data-page="purchases" onclick="showPage('purchases',this)"><svg><use href="#i-coin"/></svg> ราคาซื้อ</button>
     <button class="side-link" data-page="products" onclick="showPage('products',this)"><svg><use href="#i-product"/></svg> สินค้า</button>
     <button class="side-link" data-page="shipments" onclick="showPage('shipments',this)"><svg><use href="#i-ship"/></svg> ส่งออก</button>
     <div class="side-foot">
@@ -109,6 +110,16 @@
       <div id="mat-list"><div class="loading">กำลังโหลด...</div></div>
     </section>
 
+    <!-- ===== PURCHASES (ราคาซื้อ) ===== -->
+    <section id="page-purchases" class="page">
+      <div class="page-head">
+        <div><div class="page-title">ราคาซื้อล่าสุด</div><div class="page-sub">เลือกหน่วยจาก dropdown → ดูต้นทุนทันที (เครื่องคิดเลขนี้ไม่กระทบราคาจริง)</div></div>
+        <button class="btn btn-primary btn-sm" onclick="openMatModal()"><svg><use href="#i-plus"/></svg> เพิ่ม</button>
+      </div>
+      <div class="stat-grid" id="buy-summary"></div>
+      <div id="buy-list"><div class="loading">กำลังโหลด...</div></div>
+    </section>
+
     <!-- ===== PRODUCTS ===== -->
     <section id="page-products" class="page">
       <div class="page-head">
@@ -124,6 +135,7 @@
         <div><div class="page-title">ส่งออก</div><div class="page-sub">ออเดอร์รายวัน · ต้นทุนต่อแพลตฟอร์ม</div></div>
         <button class="btn btn-primary btn-sm" onclick="openShipPdfModal()"><svg><use href="#i-doc"/></svg> นำเข้า PDF</button>
       </div>
+      <div id="ship-overview"></div>
       <div class="pf-tabs" id="ship-tabs">
         <button class="pf-tab active" data-pf="lazada" onclick="setPlatform('lazada')"><span class="pf-dot" style="background:var(--plat-lazada)"></span> Lazada</button>
         <button class="pf-tab" data-pf="shopee" onclick="setPlatform('shopee')"><span class="pf-dot" style="background:var(--plat-shopee)"></span> Shopee</button>
@@ -141,6 +153,7 @@
   <button class="active" data-page="dashboard" onclick="showPage('dashboard',this)"><svg><use href="#i-dash"/></svg>ภาพรวม</button>
   <button data-page="expenses" onclick="showPage('expenses',this)"><svg><use href="#i-expense"/></svg>ค่าใช้จ่าย</button>
   <button data-page="materials" onclick="showPage('materials',this)"><svg><use href="#i-material"/></svg>วัตถุดิบ</button>
+  <button data-page="purchases" onclick="showPage('purchases',this)"><svg><use href="#i-coin"/></svg>ราคาซื้อ</button>
   <button data-page="products" onclick="showPage('products',this)"><svg><use href="#i-product"/></svg>สินค้า</button>
   <button data-page="shipments" onclick="showPage('shipments',this)"><svg><use href="#i-ship"/></svg>ส่งออก</button>
 </nav>
@@ -205,7 +218,7 @@
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
         <label class="fl" style="margin:0">ราคา/หน่วย (ปรับเองได้)</label>
         <div style="display:flex;align-items:center;gap:6px">
-          <input type="number" class="num price-input" id="mf-price" step="0.01" placeholder="0.00" style="width:120px;text-align:right">
+          <input type="number" class="num price-input" id="mf-price" step="0.01" placeholder="0.00" style="width:120px;text-align:right" oninput="updateMatPreview()">
           <span class="muted" style="font-size:12.5px;white-space:nowrap">฿/<span id="mf-unit-echo">หน่วย</span></span>
         </div>
       </div>
@@ -236,9 +249,10 @@
       </div>
     </details>
     <div class="eyebrow" style="margin-bottom:10px">สูตรวัตถุดิบ (BOM)</div>
-    <div class="bom-edit-head"><span>วัตถุดิบ</span><span>จำนวน</span><span>หน่วย/หมายเหตุ</span><span>VAT</span><span></span></div>
+    <div class="bom-edit-head"><span>วัตถุดิบ</span><span>ราคา/หน่วย</span><span>จำนวนใช้</span><span>หน่วยที่ใช้</span><span>VAT</span><span></span></div>
     <div id="bom-rows"></div>
     <button class="btn btn-sm" style="margin-bottom:6px" onclick="addBOMRow()"><svg><use href="#i-plus"/></svg> เพิ่มวัตถุดิบ</button>
+    <div class="bom-foot" style="border-radius:11px;margin:4px 0 2px"><span class="l">รวมต้นทุนต่อชิ้น/ออเดอร์</span><span class="v"><span id="bom-total">0.00</span> ฿</span></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('prod-modal')">ยกเลิก</button>
       <button class="btn btn-primary" id="prod-save-btn" onclick="saveProduct()">บันทึก</button>

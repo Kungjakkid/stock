@@ -29,8 +29,60 @@
     return `${+m[3]} ${months[+m[2]]} ${(+m[1])+543-2500}`.replace(' -','');
   }
   function unitCost(productId){ const p=products.find(x=>x.id===productId); return p?calcProductCost(p.bom):0; }
+  /* ต้นทุนสด: คำนวณจากสินค้าที่ผูก (product_id) หรือ match ด้วย SKU ตอนแสดงผล
+     → ถ้ากรอกต้นทุน/BOM ทีหลัง ออเดอร์เก่าจะคิดต้นทุนใหม่ให้อัตโนมัติ
+     ถ้าหาสินค้าไม่เจอจริง ๆ ค่อย fallback ใช้ค่าที่บันทึกไว้ */
+  function shipCost(s){
+    const p = s.product_id ? products.find(x=>x.id===s.product_id) : matchProductBySku(s.sku);
+    if(p){ const u=calcProductCost(p.bom); if(u>0) return +(u*(+s.qty||0)).toFixed(2); }
+    return +s.cost||0;
+  }
+
+  /* ภาพรวมรายวัน — นับออเดอร์ทุกแพลตฟอร์มต่อวัน */
+  function renderShipOverview(){
+    const el=document.getElementById('ship-overview'); if(!el) return;
+    if(!shipments.length){ el.innerHTML=''; return; }
+    const today=todayISO();
+    const byDate={};
+    shipments.forEach(s=>{ const d=s.ship_date||'-'; (byDate[d]=byDate[d]||[]).push(s); });
+    const dates=Object.keys(byDate).filter(d=>d!=='-').sort().reverse().slice(0,10);
+    const PFS=[['lazada','Lazada'],['shopee','Shopee'],['tiktok','TikTok']];
+    const tRows=byDate[today]||[];
+    const tQty=tRows.reduce((a,s)=>a+(+s.qty||0),0);
+    const tCost=tRows.reduce((a,s)=>a+shipCost(s),0);
+
+    let html=`<div class="stat-grid" style="margin-bottom:12px">
+      <div class="stat hero"><div class="ico"><svg><use href="#i-ship"/></svg></div>
+        <div class="stat-label">วันนี้ · ${prettyDate(today)}</div>
+        <div class="stat-value">${tRows.length}<span class="stat-unit">ออเดอร์</span></div>
+        <div class="stat-sub">${tQty} ชิ้น · ต้นทุน ${fmtB(tCost)} ฿</div></div>
+      <div class="stat"><div class="stat-label">ออเดอร์ทั้งหมด</div><div class="stat-value">${shipments.length}</div><div class="stat-sub">ทุกแพลตฟอร์ม</div></div>
+    </div>`;
+
+    const rows=dates.map(d=>{
+      const list=byDate[d];
+      const counts=PFS.map(([k])=>list.filter(s=>s.platform===k).length);
+      const qty=list.reduce((a,s)=>a+(+s.qty||0),0);
+      const cost=list.reduce((a,s)=>a+shipCost(s),0);
+      const isToday=d===today;
+      return `<tr class="${isToday?'ship-today':''}">
+        <td class="ship-od">${prettyDate(d)}${isToday?' <span class="chiplet">วันนี้</span>':''}</td>
+        ${counts.map(c=>`<td class="mono" style="text-align:right;color:${c?'var(--text)':'var(--text-3)'}">${c||'–'}</td>`).join('')}
+        <td class="mono" style="text-align:right;font-weight:700">${list.length}</td>
+        <td class="mono" style="text-align:right;color:var(--text-2)">${qty}</td>
+        <td class="mono pos" style="text-align:right;font-weight:600">${fmtB(cost)}</td>
+      </tr>`;
+    }).join('');
+    html+=secLabel('ภาพรวมรายวัน · ทุกแพลตฟอร์ม', dates.length+' วัน');
+    html+=`<div class="bom-table-wrap"><table class="dtable ship-od-table">
+      <thead><tr><th>วันที่</th><th style="text-align:right">Lazada</th><th style="text-align:right">Shopee</th><th style="text-align:right">TikTok</th><th style="text-align:right">รวม</th><th style="text-align:right">ชิ้น</th><th style="text-align:right">ต้นทุน ฿</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+    el.innerHTML=html;
+  }
 
   function renderShipments(){
+    renderShipOverview();
     const platformList=shipments.filter(s=>s.platform===curPlatform);
     const allDates=[...new Set(platformList.map(s=>s.ship_date||'-'))].sort().reverse();
     const today=todayISO();
@@ -61,7 +113,7 @@
     const byDate={};
     list.forEach(s=>{ (byDate[s.ship_date||'-']=byDate[s.ship_date||'-']||[]).push(s); });
     const dates=Object.keys(byDate).sort().reverse();
-    const grand=list.reduce((s,x)=>s+(+x.cost||0),0);
+    const grand=list.reduce((s,x)=>s+shipCost(x),0);
     const totalQty=list.reduce((s,x)=>s+(+x.qty||0),0);
     const label=dateFilter==='all'?'ทั้งหมด':(dateFilter==='today'?'วันนี้':prettyDate(filterKey));
 
@@ -78,32 +130,28 @@
     let html='';
     dates.forEach(d=>{
       const rows=byDate[d];
-      const dayCost=rows.reduce((s,x)=>s+(+x.cost||0),0);
+      const dayCost=rows.reduce((s,x)=>s+shipCost(x),0);
       const dayQty=rows.reduce((s,x)=>s+(+x.qty||0),0);
       html+=secLabel(prettyDate(d)||'ไม่ระบุวันที่', `${rows.length} ออเดอร์ · ${dayQty} ชิ้น`);
-      html+='<div class="rows">';
-      rows.forEach(s=>{
-        const meta=[s.recipient,s.province].filter(Boolean).map(x=>`<span>${esc(x)}</span>`).join('<span class="sep">·</span>');
-        html+=`<div class="row-card">
-          <div class="rc-top">
-            <div style="min-width:0">
-              <div class="rc-name" style="font-size:14px">${esc(s.product_name)||'(ไม่ระบุสินค้า)'}</div>
-              <div class="rc-meta" style="margin-top:5px">
-                <span class="chiplet sku">${esc(s.sku)||'-'}</span>
-                <span class="mono" style="font-size:11px;color:var(--text-3)">#${esc(s.order_id)}</span>
-              </div>
-            </div>
-            <div style="text-align:right;flex-shrink:0">
-              <div class="rc-amt" style="color:var(--accent)">${fmtB(s.cost)} ฿</div>
-              <div style="font-size:11px;color:var(--text-3)">×${s.qty}</div>
-            </div>
-          </div>
-          ${meta?`<div class="rc-foot"><div class="rc-meta" style="margin:0">${meta}</div><button class="icon-x" onclick="delShipment('${s.id}')"><svg><use href="#i-x"/></svg></button></div>`
-            :`<div class="rc-foot"><span></span><button class="icon-x" onclick="delShipment('${s.id}')"><svg><use href="#i-x"/></svg></button></div>`}
-        </div>`;
-      });
-      html+='</div>';
-      html+=`<div class="day-total"><span class="l">รวม ${prettyDate(d)}</span><span class="v">${fmtB(dayCost)} ฿</span></div>`;
+      const body=rows.map((s,i)=>{
+        const cost=shipCost(s);
+        const sub=[s.recipient,s.province].filter(Boolean).join(' · ');
+        const unmatched=!s.product_id && !matchProductBySku(s.sku);
+        return `<tr>
+          <td class="mono ship-i">${i+1}</td>
+          <td class="ship-nm"><div class="nm">${esc(s.product_name)||'(ไม่ระบุสินค้า)'}</div>${sub?`<div class="sub">${esc(sub)}</div>`:''}</td>
+          <td><span class="chiplet sku">${esc(s.sku)||'-'}</span></td>
+          <td class="mono ship-oid">#${esc(s.order_id)}</td>
+          <td class="mono ship-qty">×${s.qty}</td>
+          <td class="mono ship-cost ${cost>0?'pos':'zero'}">${fmtB(cost)}${unmatched?' <span class="ship-warn" title="ยังไม่ match สินค้า">⚠</span>':''}</td>
+          <td class="ship-act"><button class="icon-x" onclick="delShipment('${s.id}')"><svg><use href="#i-x"/></svg></button></td>
+        </tr>`;
+      }).join('');
+      html+=`<div class="bom-table-wrap"><table class="dtable ship-dtable">
+        <thead><tr><th class="ship-i">#</th><th>สินค้า / ผู้รับ</th><th>SKU</th><th>Order ID</th><th style="text-align:right">จำนวน</th><th style="text-align:right">ต้นทุน ฿</th><th></th></tr></thead>
+        <tbody>${body}</tbody>
+        <tfoot><tr><td colspan="5" style="text-align:right;font-weight:600">รวม ${prettyDate(d)} · ${dayQty} ชิ้น</td><td class="mono" style="text-align:right;font-weight:700;color:var(--accent)">${fmtB(dayCost)}</td><td></td></tr></tfoot>
+      </table></div>`;
     });
     document.getElementById('ship-days').innerHTML=html;
   }
@@ -210,16 +258,26 @@
     const s=String(sku).trim().toLowerCase();
     return products.find(p=>(p.sku||'').trim().toLowerCase()===s)||null;
   }
+  /* ออเดอร์นี้มีในฐานข้อมูลแล้วไหม (เช็คจาก Order ID ต่อแพลตฟอร์มที่กำลังนำเข้า) */
+  function isDupOrder(orderId){
+    const id=String(orderId||'').trim();
+    if(!id) return false;
+    return shipments.some(s=>s.platform===curPlatform && String(s.order_id||'').trim()===id);
+  }
 
   function renderShipRows(){
     const tb=document.getElementById('ship-items');
-    let grand=0;
+    let grand=0, dupCount=0;
+    const seen={};
     tb.innerHTML=shipRows.map((r,i)=>{
       const opts=products.map(p=>`<option value="${p.id}" ${r.product_id===p.id?'selected':''}>${p.name}${p.sku?' ['+p.sku+']':''}</option>`).join('');
-      grand+=+r.cost||0;
-      const cls=r.product_id?'matched':'unmatched';
+      const oid=String(r.order_id||'').trim();
+      const dup=!!oid && (isDupOrder(oid) || !!seen[oid]);
+      if(oid) seen[oid]=1;
+      if(dup) dupCount++; else grand+=+r.cost||0;
+      const cls=dup?'dup':(r.product_id?'matched':'unmatched');
       return `<tr class="${cls}">
-        <td><input type="text" class="mono" value="${esc(r.order_id)}" onchange="shipUpdate(${i},'order_id',this.value)" style="width:130px"></td>
+        <td><input type="text" class="mono" value="${esc(r.order_id)}" onchange="shipUpdate(${i},'order_id',this.value);renderShipRows()" style="width:130px">${dup?'<span class="dup-badge">ซ้ำ</span>':''}</td>
         <td><input type="text" value="${esc(r.sku)}" onchange="shipUpdate(${i},'sku',this.value);shipAutoMatch(${i})" style="width:64px"></td>
         <td><input type="text" value="${esc(r.product_name)}" onchange="shipUpdate(${i},'product_name',this.value)" style="min-width:130px"></td>
         <td><input type="number" class="num" value="${r.qty}" step="1" onchange="shipUpdate(${i},'qty',parseFloat(this.value)||1);shipRecalc(${i});renderShipRows()" style="width:54px;text-align:right"></td>
@@ -230,7 +288,7 @@
         <td><button class="icon-x" onclick="shipRowDel(${i})"><svg><use href="#i-x"/></svg></button></td>
       </tr>`;
     }).join('');
-    document.getElementById('ship-count').textContent=shipRows.length;
+    document.getElementById('ship-count').textContent=dupCount?`${shipRows.length-dupCount} (ซ้ำ ${dupCount} จะข้าม)`:shipRows.length;
     document.getElementById('ship-grand').textContent=fmtB(grand);
   }
 
@@ -244,16 +302,23 @@
     const btn=document.getElementById('ship-save-btn');
     btn.disabled=true; btn.textContent='กำลังบันทึก...';
     try{
-      const rows=shipRows.filter(r=>r.order_id).map(r=>({
-        platform:curPlatform, order_id:r.order_id, sku:r.sku, product_name:r.product_name,
-        product_id:r.product_id, qty:+r.qty||1, ship_date:r.ship_date,
-        recipient:r.recipient, province:r.province, cost:+r.cost||0
-      }));
-      if(!rows.length){showToast('ไม่มีรายการที่บันทึกได้','error');return}
+      const seen={}; let dupCount=0;
+      const rows=[];
+      shipRows.filter(r=>r.order_id).forEach(r=>{
+        const oid=String(r.order_id).trim();
+        if(isDupOrder(oid) || seen[oid]){ dupCount++; return; }   // ข้ามออเดอร์ซ้ำ
+        seen[oid]=1;
+        rows.push({
+          platform:curPlatform, order_id:r.order_id, sku:r.sku, product_name:r.product_name,
+          product_id:r.product_id, qty:+r.qty||1, ship_date:r.ship_date,
+          recipient:r.recipient, province:r.province, cost:+r.cost||0
+        });
+      });
+      if(!rows.length){ showToast(dupCount?`ทุกออเดอร์มีอยู่แล้ว (ซ้ำ ${dupCount})`:'ไม่มีรายการที่บันทึกได้','error'); return; }
       const {error}=await db.from('shipments').insert(rows);
       if(error) throw error;
       closeModal('ship-pdf-modal'); await loadShipments(); renderShipments();
-      showToast('บันทึก '+rows.length+' ออเดอร์แล้ว');
+      showToast(`บันทึก ${rows.length} ออเดอร์${dupCount?` · ข้ามซ้ำ ${dupCount}`:''}`);
     }catch(e){ showToast('บันทึกล้มเหลว: '+e.message,'error'); }
     finally{ btn.disabled=false; btn.textContent='บันทึกทั้งหมด'; }
   }
@@ -263,6 +328,6 @@
     openShipPdfModal, onShipPdfPick, analyzeShipPdf,
     shipUpdate, shipAutoMatch, shipRecalc, shipRowDel,
     renderShipRows, saveShipRows, delShipment,
-    getAllShipments:()=>shipments
+    getAllShipments:()=>shipments.map(s=>({...s, cost:shipCost(s)}))
   });
 })();

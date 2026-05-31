@@ -18,7 +18,7 @@ let products = [];
 let editingProdId = null;
 let expMonthFilter = 'all';
 
-const PAGE_TITLES={dashboard:'ภาพรวม',expenses:'ค่าใช้จ่าย',materials:'วัตถุดิบ',products:'สินค้า',shipments:'ส่งออก'};
+const PAGE_TITLES={dashboard:'ภาพรวม',expenses:'ค่าใช้จ่าย',materials:'วัตถุดิบ',purchases:'ราคาซื้อ',products:'สินค้า',shipments:'ส่งออก'};
 const TH_MONTH_SHORT={'มกราคม':'ม.ค.','กุมภาพันธ์':'ก.พ.','มีนาคม':'มี.ค.','เมษายน':'เม.ย.','พฤษภาคม':'พ.ค.','มิถุนายน':'มิ.ย.','กรกฎาคม':'ก.ค.','สิงหาคม':'ส.ค.','กันยายน':'ก.ย.','ตุลาคม':'ต.ค.','พฤศจิกายน':'พ.ย.','ธันวาคม':'ธ.ค.'};
 const shortMonth = m => (TH_MONTH_SHORT[String(m).split(' ')[0]]||String(m).split(' ')[0]);
 
@@ -73,6 +73,7 @@ function showPage(name, btn){
   if(name==='dashboard') renderDashboard();
   if(name==='expenses') renderExpenses();
   if(name==='materials') renderMaterials();
+  if(name==='purchases') renderPurchases();
   if(name==='products') renderProducts();
   if(name==='shipments') renderShipments();
 }
@@ -183,24 +184,57 @@ async function loadExpenses(){
   expenses=data;
 }
 
-function expCard(e){
+/* แปลงข้อความจำนวน (เช่น "175 kg", "500 g") → จำนวน kg */
+function qtyKg(qty){
+  if(!qty) return null;
+  const s=String(qty).toLowerCase().replace(/,/g,'');
+  const m=s.match(/([\d.]+)\s*(kg|กก|กิโล|g|gram|กรัม|ml|มล|l|ลิตร)?/);
+  if(!m) return null;
+  const n=parseFloat(m[1]); if(!n) return null;
+  const u=m[2]||'';
+  if(/kg|กก|กิโล/.test(u))      return n;
+  if(/^g|gram|กรัม/.test(u))    return n/1000;
+  if(/^l|ลิตร/.test(u))         return n;       // ลิตร ≈ kg (เคมีเหลว)
+  if(/ml|มล/.test(u))           return n/1000;
+  return null;
+}
+function expRow(e){
   const hasVat=/\(VAT 7%\)/.test(e.name||'');
   const name=(e.name||'').replace(/\s*\(VAT 7%\)/g,'');
-  const thumb=e.image_url?`<img class="thumb" src="${e.image_url}" onclick="openLightbox('${e.image_url}')" title="ดูรูป">`:'';
-  const slip=e.slip_url?`<img class="thumb" src="${e.slip_url}" onclick="openLightbox('${e.slip_url}')" title="ดูสลิป">`:'';
   const ppk=e.price_per_kg;
-  const meta=[e.shop,e.qty].filter(Boolean).map(x=>`<span>${x}</span>`).join('<span class="sep">·</span>');
-  const dateStr=e.date?`${meta?'<span class="sep">·</span>':''}<span class="mono">${e.date}</span>`:'';
-  return `<div class="row-card">
-    <div class="rc-top"><div class="rc-name">${name||'(ไม่มีชื่อ)'}</div><div class="rc-amt">${fmtB(e.total)} ฿</div></div>
-    <div class="rc-meta">${meta}${dateStr}</div>
-    <div class="rc-foot">
-      <div style="display:flex;gap:7px;align-items:center;flex-wrap:wrap">
-        <span class="vat-pill ${hasVat?'':'off'}" onclick="toggleExpVat('${e.id}')" title="คลิกเพื่อ${hasVat?'ลบ':'บวก'} VAT 7%">VAT 7%</span>
-        ${ppk?`<span class="chiplet blue mono">${fmtB(ppk)} ฿/kg</span>`:''}
+  const kg=qtyKg(e.qty);
+  return `<tr>
+    <td class="exp-nm"><div class="nm">${esc(name)||'(ไม่มีชื่อ)'}</div></td>
+    <td class="exp-qty">${esc(e.qty||'')}</td>
+    <td class="mono exp-kg-col">${kg!=null?fmtB(kg):'–'}</td>
+    <td class="mono exp-kg">${ppk?fmtB(ppk):'–'}</td>
+    <td class="exp-vat"><span class="vat-pill ${hasVat?'':'off'}" onclick="toggleExpVat('${e.id}')" title="คลิกเพื่อ${hasVat?'ลบ':'บวก'} VAT 7%">VAT</span></td>
+    <td class="mono pos exp-amt">${fmtB(e.total)}</td>
+    <td class="exp-act"><button class="icon-x" onclick="delExpense('${e.id}')"><svg><use href="#i-x"/></svg></button></td>
+  </tr>`;
+}
+/* บิลหนึ่งใบ = หลายรายการที่มาจากใบกำกับเดียวกัน */
+function renderBill(rows){
+  const first=rows[0];
+  const shop=rows.map(r=>r.shop).find(Boolean)||'(ไม่ระบุร้าน)';
+  const date=rows.map(r=>r.date).find(Boolean)||'';
+  const total=rows.reduce((s,e)=>s+(+e.total),0);
+  const totalKg=rows.reduce((s,e)=>s+(qtyKg(e.qty)||0),0);
+  const img=first.image_url?`<img class="exp-thumb" src="${first.image_url}" onclick="openLightbox('${first.image_url}')" title="ดูใบกำกับ">`:'';
+  const slip=first.slip_url?`<img class="exp-thumb" src="${first.slip_url}" onclick="openLightbox('${first.slip_url}')" title="ดูสลิป">`:'';
+  return `<div class="bill">
+    <div class="bill-head">
+      <div class="bill-info">
+        <div class="bill-shop">${esc(shop)}</div>
+        <div class="bill-meta">${date?esc(date)+' · ':''}${rows.length} รายการ${totalKg>0?' · รวม '+fmtB(totalKg)+' kg':''}</div>
       </div>
-      <div class="rc-thumbs">${thumb}${slip}<button class="icon-x" onclick="delExpense('${e.id}')"><svg><use href="#i-x"/></svg></button></div>
+      <div class="bill-thumbs">${img}${slip}</div>
+      <div class="bill-total">${fmtB(total)} <span>฿</span></div>
     </div>
+    <div class="bom-table-wrap"><table class="dtable exp-dtable">
+      <thead><tr><th>รายการ</th><th>จำนวน</th><th style="text-align:right">kg</th><th style="text-align:right">฿/kg</th><th style="text-align:center">VAT</th><th style="text-align:right">ยอด ฿</th><th></th></tr></thead>
+      <tbody>${rows.map(expRow).join('')}</tbody>
+    </table></div>
   </div>`;
 }
 
@@ -232,10 +266,17 @@ function renderExpenses(){
 
   let html='';
   visibleMonths.forEach(m=>{
-    const rows=expenses.filter(e=>e.month===m);
-    const total=rows.reduce((s,e)=>s+(+e.total),0);
+    const monthRows=expenses.filter(e=>e.month===m);
+    const total=monthRows.reduce((s,e)=>s+(+e.total),0);
     html+=secLabel(m, fmtB(total)+' ฿');
-    html+='<div class="rows">'+rows.map(expCard).join('')+'</div>';
+    // จัดกลุ่มเป็นบิล: ใช้ใบกำกับ(image_url) ร่วมกัน = บิลเดียวกัน, ไม่มีรูป = รายการเดี่ยว
+    const groups=[]; const idx={};
+    monthRows.forEach(e=>{
+      const k=e.image_url||('single:'+e.id);
+      if(idx[k]==null){ idx[k]=groups.length; groups.push([]); }
+      groups[idx[k]].push(e);
+    });
+    groups.forEach(g=>{ html+=renderBill(g); });
   });
   wrap.innerHTML=html;
 }
@@ -358,6 +399,27 @@ async function delExpense(id){
 /* ============================================================
    MATERIALS
    ============================================================ */
+/* แปลงหน่วยที่กรอก → ตัวคูณให้เป็น "ต่อ 1 kg"
+   คืน null ถ้าหน่วยไม่ใช่หน่วยน้ำหนัก (เช่น ใบ/ถุง/ชิ้น) */
+function kgFactor(unit){
+  const u=String(unit||'').toLowerCase().trim();
+  if(!u) return null;
+  if(/^(kg|กก|กิโล|กิโลกรัม)/.test(u)) return 1;        // ราคาต่อ kg อยู่แล้ว
+  if(/^(ขีด)/.test(u)) return 10;                        // 1 ขีด = 100g → 10 ขีด = 1kg
+  if(/^(g|gram|กรัม|ก\.)/.test(u)) return 1000;          // ราคาต่อ g → ×1000 = ต่อ kg
+  return null;
+}
+/* ราคาต่อ 1 kg จากราคา/หน่วย */
+function matPerKg(price, unit){
+  const f=kgFactor(unit); if(f==null) return null;
+  return +((+price||0)*f).toFixed(2);
+}
+/* ตารางแบ่งย่อย ฿ ต่อ 1kg / 100g / 10g / 1g */
+function portionBreakdown(perKg){
+  if(perKg==null) return '';
+  const parts=[['1 kg',perKg],['100 g',perKg/10],['10 g',perKg/100],['1 g',perKg/1000]];
+  return parts.map(([l,v])=>`<span class="chiplet" style="margin-right:6px">${l} = <b style="color:var(--accent)">${fmtB(v)}</b>฿</span>`).join('');
+}
 async function loadMaterials(){
   const {data,error}=await db.from('materials').select('*').order('created_at');
   if(error){showToast('โหลดวัตถุดิบล้มเหลว','error');return}
@@ -369,27 +431,129 @@ function matDetail(m){
   if(m.buy_qty&&m.buy_total) return `ซื้อ ${(+m.buy_qty).toLocaleString('th-TH')} ${m.unit||''} รวม ${fmtB(m.buy_total)} ฿`;
   return m.note||'';
 }
+/* ราคามาตรฐานตามชนิดหน่วย: น้ำหนัก→฿/kg, ปริมาตร→฿/ลิตร, นับชิ้น→null */
+function matNorm(m){
+  const info=unitInfo(m.unit);
+  if(info.cat==='c') return null;
+  return { label: info.cat==='w'?'฿/kg':'฿/ลิตร', value:+((+m.price||0)*(1000/info.toBase)).toFixed(2) };
+}
 function renderMaterials(){
   const wrap=document.getElementById('mat-list');
   if(!materials.length){ wrap.innerHTML=emptyState('i-material','ยังไม่มีวัตถุดิบ','กด “เพิ่ม” เพื่อสร้างฐานข้อมูลราคา'); return; }
-  wrap.innerHTML='<div class="rows">'+materials.map(m=>{
-    const detail=matDetail(m);
-    const note=(m.buy_qty&&m.buy_total&&m.note)?m.note:'';
-    return `<div class="mat-row">
-      <div style="min-width:0">
-        <div class="mat-name">${m.name}</div>
-        <div class="mat-note">${m.shop?`<span class="chiplet" style="margin-right:6px">${esc(m.shop)}</span>`:''}${detail?`<span>${esc(detail)}</span>`:''}${note?`<span class="sep" style="margin:0 5px">·</span><span>${esc(note)}</span>`:''}</div>
-      </div>
-      <div class="mat-right">
-        <div style="text-align:right">
-          <div class="muted" style="font-size:10px;line-height:1">฿ / ${m.unit||'?'}</div>
-          <input type="number" step="0.01" class="price-input" style="margin-top:3px" value="${(+m.price).toFixed(2)}" onchange="updateMatPrice('${m.id}',this.value)">
-        </div>
-        <button class="icon-btn" style="width:34px;height:34px" onclick="openMatModal('${m.id}')" title="แก้ไข"><svg style="width:16px;height:16px"><use href="#i-edit"/></svg></button>
-        <button class="icon-x" onclick="delMaterial('${m.id}')"><svg><use href="#i-x"/></svg></button>
-      </div>
-    </div>`;
-  }).join('')+'</div>';
+
+  // ----- การ์ดสรุปด้านบน -----
+  const weightMats=materials.filter(m=>unitInfo(m.unit).cat==='w');
+  const normed=weightMats.map(m=>({m,v:matNorm(m).value})).filter(x=>x.v>0);
+  const avgKg=normed.length?normed.reduce((s,x)=>s+x.v,0)/normed.length:0;
+  const maxItem=normed.length?normed.reduce((a,b)=>b.v>a.v?b:a):null;
+  const summary=`<div class="stat-grid" style="margin-bottom:14px">
+    <div class="stat hero"><div class="ico"><svg><use href="#i-material"/></svg></div>
+      <div class="stat-label">วัตถุดิบทั้งหมด</div>
+      <div class="stat-value">${materials.length}<span class="stat-unit">รายการ</span></div>
+      <div class="stat-sub">${weightMats.length} ชนิดชั่งน้ำหนัก</div></div>
+    <div class="stat"><div class="ico"><svg><use href="#i-coin"/></svg></div>
+      <div class="stat-label">ราคาเฉลี่ย</div>
+      <div class="stat-value" style="font-size:21px">${fmtB(avgKg)}<span class="stat-unit">฿/kg</span></div>
+      <div class="stat-sub">เฉพาะวัตถุดิบชั่งน้ำหนัก</div></div>
+    ${maxItem?`<div class="stat"><div class="ico"><svg><use href="#i-trend"/></svg></div>
+      <div class="stat-label">แพงสุด/kg</div>
+      <div class="stat-value" style="font-size:19px">${fmtB(maxItem.v)}<span class="stat-unit">฿</span></div>
+      <div class="stat-sub">${esc(maxItem.m.name)}</div></div>`:''}
+  </div>`;
+
+  // ----- จัดกลุ่มตามชนิดหน่วย -----
+  const cats=[
+    {key:'w', label:'วัตถุดิบ · ชั่งน้ำหนัก', color:'var(--accent)'},
+    {key:'v', label:'ของเหลว · ปริมาตร',     color:'var(--blue)'},
+    {key:'c', label:'บรรจุภัณฑ์ / อื่น ๆ',   color:'var(--text-3)'}
+  ];
+  let html=summary;
+  cats.forEach(c=>{
+    const items=materials.filter(m=>unitInfo(m.unit).cat===c.key);
+    if(!items.length) return;
+    const hasNorm=c.key!=='c';
+    const rows=items.map(m=>{
+      const norm=matNorm(m);
+      const sub=[m.shop,(m.buy_qty&&m.buy_total)?`ซื้อ ${(+m.buy_qty).toLocaleString('th-TH')}${esc(m.unit||'')}/${fmtB(m.buy_total)}฿`:''].filter(Boolean).join(' · ');
+      return `<tr>
+        <td class="mat-nm"><span class="mat-dot" style="background:${c.color}"></span><div class="mat-nmwrap"><div class="nm">${esc(m.name)}</div>${sub?`<div class="sub">${esc(sub)}</div>`:''}</div></td>
+        <td class="mat-pr"><input type="number" step="0.01" class="price-input" value="${(+m.price).toFixed(2)}" onchange="updateMatPrice('${m.id}',this.value)"><span class="u">฿/${esc(m.unit||'?')}</span></td>
+        ${hasNorm?`<td class="mono mat-kg">${norm?fmtB(norm.value):'–'}<span class="ku"> ${norm?norm.label:''}</span></td>`:''}
+        <td class="mat-act">
+          <button class="icon-btn" onclick="openMatModal('${m.id}')" title="แก้ไข"><svg><use href="#i-edit"/></svg></button>
+          <button class="icon-x" onclick="delMaterial('${m.id}')"><svg><use href="#i-x"/></svg></button>
+        </td>
+      </tr>`;
+    }).join('');
+    html+=secLabel(c.label, items.length+' รายการ');
+    html+=`<div class="bom-table-wrap"><table class="dtable mat-dtable">
+      <thead><tr><th>วัตถุดิบ</th><th>ราคา / หน่วย</th>${hasNorm?`<th style="text-align:right">${c.key==='w'?'฿/kg':'฿/ลิตร'}</th>`:''}<th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+  });
+  wrap.innerHTML=html;
+}
+/* ===== หน้า "ราคาซื้อ" — ราคาซื้อล่าสุด + เครื่องคิดเลขแปลงหน่วย ===== */
+/* หน่วยที่เลือกได้ใน dropdown ตามชนิดของวัตถุดิบ */
+function unitOptionsFor(m){
+  const info=unitInfo(m.unit);
+  if(info.cat==='w') return ['kg','ขีด','กรัม'];
+  if(info.cat==='v') return ['ลิตร','มล'];
+  return [m.unit||'ชิ้น'];
+}
+/* คำนวณต้นทุนสด ๆ ในแถว (ไม่บันทึก ไม่แก้ราคาจริง) */
+function calcBuyCost(el){
+  const tr=el.closest('tr'); const id=tr.dataset.mat;
+  const m=materials.find(x=>x.id===id); if(!m) return;
+  const qty=parseFloat(tr.querySelector('.calc-qty').value)||0;
+  const unit=tr.querySelector('.calc-unit').value;
+  const used=unitsUsed(qty,unit,m.unit);
+  const n=(used==null)?qty:used;
+  const cost=(+m.price||0)*n;
+  tr.querySelector('.calc-out').textContent=fmtB(cost);
+}
+function renderPurchases(){
+  const wrap=document.getElementById('buy-list');
+  const sumEl=document.getElementById('buy-summary');
+  if(!materials.length){ sumEl.innerHTML=''; wrap.innerHTML=emptyState('i-coin','ยังไม่มีข้อมูลราคาซื้อ','กด “เพิ่ม” เพื่อบันทึกวัตถุดิบและราคาที่ซื้อมา'); return; }
+  const withBuy=materials.filter(m=>m.buy_qty&&m.buy_total);
+  const totalSpent=withBuy.reduce((s,m)=>s+(+m.buy_total||0),0);
+  sumEl.innerHTML=`
+    <div class="stat hero"><div class="ico"><svg><use href="#i-coin"/></svg></div>
+      <div class="stat-label">มูลค่าซื้อรวม (ล็อตล่าสุด)</div>
+      <div class="stat-value">${fmtB(totalSpent)}<span class="stat-unit">฿</span></div>
+      <div class="stat-sub">${withBuy.length}/${materials.length} รายการมีบันทึกการซื้อ</div></div>
+    <div class="stat"><div class="ico"><svg><use href="#i-material"/></svg></div>
+      <div class="stat-label">วัตถุดิบทั้งหมด</div>
+      <div class="stat-value">${materials.length}</div><div class="stat-sub">รายการ</div></div>`;
+
+  const rows=materials.map(m=>{
+    const unit=m.unit||'?';
+    const buyTxt=(m.buy_qty&&m.buy_total)
+      ? `${(+m.buy_qty).toLocaleString('th-TH')} ${esc(unit)} · <b>${fmtB(m.buy_total)}</b> ฿`
+      : `<span class="muted">–</span>`;
+    const opts=unitOptionsFor(m);
+    const initUnit=opts[0];
+    const initUsed=unitsUsed(1,initUnit,m.unit);
+    const initCost=(+m.price||0)*((initUsed==null)?1:initUsed);
+    const optHtml=opts.map(u=>`<option value="${esc(u)}">${esc(u)}</option>`).join('');
+    return `<tr data-mat="${m.id}">
+      <td class="mat-nm"><div class="mat-nmwrap"><div class="nm">${esc(m.name)}</div>${m.shop?`<div class="sub">${esc(m.shop)}</div>`:''}</div></td>
+      <td class="buy-last">${buyTxt}</td>
+      <td class="mat-pr"><input type="number" step="0.01" class="price-input" value="${(+m.price).toFixed(2)}" onchange="updateMatPrice('${m.id}',this.value)"><span class="u">฿/${esc(unit)}</span></td>
+      <td class="buy-calc">
+        <input type="number" class="calc-qty num" value="1" step="0.001" min="0" oninput="calcBuyCost(this)">
+        <select class="calc-unit" onchange="calcBuyCost(this)">${optHtml}</select>
+        <span class="calc-eq">=</span>
+        <span class="calc-out mono">${fmtB(initCost)}</span><span class="calc-baht">฿</span>
+      </td>
+      <td class="mat-act"><button class="btn btn-sm" onclick="openMatModal('${m.id}')"><svg><use href="#i-edit"/></svg> อัปเดตซื้อ</button></td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML=`<div class="bom-table-wrap"><table class="dtable buy-dtable">
+    <thead><tr><th>วัตถุดิบ</th><th>ซื้อล่าสุด</th><th>ราคา/หน่วย</th><th>คิดต้นทุน (เลือกหน่วย)</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
 }
 function openMatModal(id){
   editingMatId=id||null;
@@ -411,12 +575,20 @@ function updateMatPreview(){
   const unit=document.getElementById('mf-unit').value.trim()||'หน่วย';
   document.getElementById('mf-unit-echo').textContent=unit;
   const hint=document.getElementById('mf-calc-hint');
+  const priceVal=parseFloat(document.getElementById('mf-price').value)||0;
   if(q>0&&t>0){
     const p=+(t/q).toFixed(2);
     document.getElementById('mf-price').value=p;
-    hint.innerHTML=`ซื้อ <b>${q.toLocaleString('th-TH')} ${esc(unit)}</b> รวม <b>${fmtB(t)} ฿</b> → <b style="color:var(--accent)">${fmtB(p)} ฿/${esc(unit)}</b>`;
+    const perKg=matPerKg(p,unit);
+    const bd=perKg!=null?`<div style="margin-top:6px">${portionBreakdown(perKg)}</div>`:'';
+    hint.innerHTML=`ซื้อ <b>${q.toLocaleString('th-TH')} ${esc(unit)}</b> รวม <b>${fmtB(t)} ฿</b> → <b style="color:var(--accent)">${fmtB(p)} ฿/${esc(unit)}</b>${bd}`;
   } else {
-    hint.textContent='ใส่จำนวนที่ซื้อ + ราคารวม แล้วระบบคำนวณ ฿/หน่วย ให้อัตโนมัติ (หรือกรอกราคา/หน่วยเองก็ได้)';
+    const perKg=matPerKg(priceVal,unit);
+    if(perKg!=null&&priceVal>0){
+      hint.innerHTML=`<b style="color:var(--accent)">${fmtB(perKg)} ฿/kg</b><div style="margin-top:6px">${portionBreakdown(perKg)}</div>`;
+    } else {
+      hint.textContent='ใส่จำนวนที่ซื้อ + ราคารวม แล้วระบบคำนวณ ฿/หน่วย ให้อัตโนมัติ (หรือกรอกราคา/หน่วยเองก็ได้)';
+    }
   }
 }
 function autoNote(q,t,unit,shop){
@@ -452,16 +624,44 @@ async function saveMaterial(){
   const ok = await upsertMaterial(full, legacyNote);
   setLoading('mat-save-btn',false);
   if(!ok) return;
-  closeModal('mat-modal'); await loadMaterials(); renderMaterials(); renderProducts();
+  closeModal('mat-modal'); await loadMaterials(); renderMaterials(); renderPurchases(); renderProducts(); window.renderShipments&&window.renderShipments();
   showToast(editingMatId?'แก้ไขวัตถุดิบแล้ว':'เพิ่มวัตถุดิบแล้ว');
 }
-async function updateMatPrice(id,val){ await db.from('materials').update({price:parseFloat(val)||0}).eq('id',id); await loadMaterials(); renderProducts(); }
-async function delMaterial(id){ if(!confirm('ลบวัตถุดิบนี้?'))return; await db.from('materials').delete().eq('id',id); await loadMaterials(); renderMaterials(); renderProducts(); }
+async function updateMatPrice(id,val){ await db.from('materials').update({price:parseFloat(val)||0}).eq('id',id); await loadMaterials(); renderPurchases(); renderProducts(); window.renderShipments&&window.renderShipments(); }
+async function delMaterial(id){ if(!confirm('ลบวัตถุดิบนี้?'))return; await db.from('materials').delete().eq('id',id); await loadMaterials(); renderMaterials(); renderPurchases(); renderProducts(); }
 
 /* ============================================================
    PRODUCTS
    ============================================================ */
-function calcItemCost(b){ const m=materials.find(x=>x.id===b.matId); const base=m?+m.price*b.qty:0; return b.vat?base*1.07:base; }
+/* ---- แปลงหน่วยสำหรับคำนวณต้นทุน BOM ----
+   จัด unit เป็น 3 ชนิด: น้ำหนัก(w) / ปริมาตร(v) / นับชิ้น(c)
+   toBase = แปลงเป็นหน่วยฐาน (กรัม / มล. / ชิ้น) */
+function unitInfo(u){
+  const s=String(u||'').toLowerCase().trim();
+  if(/^(kg|กก|กิโล)/.test(s))            return {cat:'w',toBase:1000};
+  if(/^(ขีด)/.test(s))                    return {cat:'w',toBase:100};
+  if(/^(g|gram|กรัม|ก\.)/.test(s))        return {cat:'w',toBase:1};
+  if(/^(l|ลิตร|ลิ)/.test(s))              return {cat:'v',toBase:1000};
+  if(/^(ml|มล|มิลลิ|ซีซี|cc)/.test(s))    return {cat:'v',toBase:1};
+  return {cat:'c',toBase:1};   // ชิ้น/อัน/ใบ/ถุง/ออเดอร์ ฯลฯ = นับเป็นชิ้น
+}
+/* จำนวน "หน่วยของวัตถุดิบ" ที่ถูกใช้ไป (เพื่อคูณกับราคา/หน่วย)
+   คืน null ถ้าหน่วยคนละชนิดแปลงไม่ได้ */
+function unitsUsed(qty, usageUnit, matUnit){
+  const used=+qty||0;
+  const U=unitInfo(usageUnit||matUnit), M=unitInfo(matUnit);
+  if(U.cat!==M.cat) return null;
+  return (used*U.toBase)/M.toBase;
+}
+function calcItemCost(b){
+  const m=materials.find(x=>x.id===b.matId);
+  const price=(b.price!=null&&b.price!=='')?(+b.price||0):(m?+m.price||0:0); // ราคาที่กรอกทับ > ราคาวัตถุดิบ
+  const matUnit=m?m.unit:b.unit;
+  const u=unitsUsed(b.qty, b.unit, matUnit);
+  const n=(u==null)?(+b.qty||0):u;          // แปลงไม่ได้ → ใช้จำนวนตรงๆ
+  const base=price*n;
+  return b.vat?base*1.07:base;
+}
 function calcProductCost(bom){ return (bom||[]).reduce((s,b)=>s+calcItemCost(b),0); }
 
 async function loadProducts(){
@@ -476,15 +676,21 @@ function renderProducts(){
   list.innerHTML=products.map(p=>{
     const total=calcProductCost(p.bom);
     const bom=(p.bom||[]);
-    const rows=bom.map(b=>{
+    const rows=bom.map((b,i)=>{
       const m=materials.find(x=>x.id===b.matId);
       const cost=calcItemCost(b);
-      return `<div class="bom-item">
-        <div class="bn">${m?m.name:'(ลบแล้ว)'}${b.vat?' <span class="chiplet gold">VAT</span>':''}
-          <span class="bd">${b.label?esc(b.label)+' · ':''}${b.qty}×${m?(+m.price).toFixed(2):'?'} ฿</span>
-        </div>
-        <div class="bc">${fmtB(cost)}</div>
-      </div>`;
+      const usageUnit=b.unit||b.label||(m?m.unit:'')||'';
+      const priceShown=(b.price!=null&&b.price!=='')?+b.price:(m?+m.price:null);
+      const priceUnit=m?(m.unit||'?'):(usageUnit||'?');
+      return `<tr>
+        <td class="mono" style="text-align:center;color:var(--text-3)">${i+1}</td>
+        <td>${m?esc(m.name):'(ลบแล้ว)'}${b.vat?' <span class="chiplet gold">VAT</span>':''}</td>
+        <td class="mono" style="text-align:right">${priceShown!=null?fmtB(priceShown):'?'}</td>
+        <td style="color:var(--text-2)">฿/${esc(priceUnit)}</td>
+        <td class="mono" style="text-align:right">${(+b.qty).toLocaleString('th-TH')}</td>
+        <td style="color:var(--text-2)">${esc(usageUnit)}</td>
+        <td class="mono pos" style="text-align:right;font-weight:600">${fmtB(cost)}</td>
+      </tr>`;
     }).join('');
     const pf=`<span class="pf-letters">
       ${p.lazada_name?`<span class="pf-letter" style="background:var(--plat-lazada)" title="${esc(p.lazada_name)}">L</span>`:''}
@@ -505,8 +711,13 @@ function renderProducts(){
         </div>
       </div>
       <div class="prod-body" id="body-${p.id}" style="max-height:2000px">
-        <div class="bom-list">${rows||'<div class="bd" style="padding:10px 0;color:var(--text-3)">ไม่มีวัตถุดิบ</div>'}</div>
-        <div class="bom-foot"><span class="l">รวมต้นทุนวัตถุดิบ</span><span class="v">${fmtB(total)} ฿</span></div>
+        <div class="bom-table-wrap">
+          ${bom.length?`<table class="dtable bom-dtable">
+            <thead><tr><th style="width:34px">#</th><th>วัตถุดิบ</th><th style="text-align:right">ราคา</th><th>หน่วย</th><th style="text-align:right">จำนวนใช้</th><th>หน่วยใช้</th><th style="text-align:right">ต้นทุน</th></tr></thead>
+            <tbody>${rows}</tbody>
+            <tfoot><tr><td colspan="6" style="text-align:right;font-weight:600">รวมต้นทุนต่อชิ้น/ออเดอร์</td><td class="mono" style="text-align:right;font-weight:700;color:var(--accent)">${fmtB(total)} ฿</td></tr></tfoot>
+          </table>`:'<div class="bd" style="padding:14px 16px;color:var(--text-3)">ไม่มีวัตถุดิบ</div>'}
+        </div>
       </div>
     </div>`;
   }).join('');
@@ -537,14 +748,48 @@ function openEditProd(id){
 function addBOMRow(data){
   const div=document.createElement('div');
   div.className='bom-edit-row';
-  const matOpts=materials.map(m=>`<option value="${m.id}" ${data&&data.matId===m.id?'selected':''}>${m.name} (${m.unit})</option>`).join('');
+  const matOpts=materials.map(m=>`<option value="${m.id}" data-unit="${esc(m.unit||'')}" data-price="${+m.price||0}" ${data&&data.matId===m.id?'selected':''}>${m.name} · ${fmtB(m.price)}฿/${m.unit||'?'}</option>`).join('');
+  // ราคาเริ่มต้น: ใช้ค่าที่บันทึกไว้ ถ้าไม่มีดึงจากวัตถุดิบที่เลือก
+  const selMat = (data&&data.matId) ? materials.find(m=>m.id===data.matId) : materials[0];
+  const priceVal = (data&&data.price!=null&&data.price!=='') ? data.price : (selMat?(+selMat.price||0):'');
   div.innerHTML=`
-    <select class="bom-mat bmat">${matOpts}</select>
-    <input type="number" class="bom-qty num" placeholder="จำนวน" step="0.001" value="${data?data.qty:''}" style="text-align:right">
-    <input type="text" class="bom-label" placeholder="หน่วย/หมายเหตุ" value="${data?esc(data.label):''}">
-    <label class="vcell"><input type="checkbox" class="bom-vat" ${data&&data.vat?'checked':''}></label>
-    <button class="icon-x xcell" onclick="this.closest('.bom-edit-row').remove()"><svg><use href="#i-x"/></svg></button>`;
+    <select class="bom-mat bmat" onchange="onBomMatChange(this)">${matOpts}</select>
+    <input type="number" class="bom-price num" placeholder="ราคา" step="0.01" value="${priceVal}" style="text-align:right" oninput="updateBomTotal()">
+    <input type="number" class="bom-qty num" placeholder="จำนวน" step="0.001" value="${data?data.qty:''}" style="text-align:right" oninput="updateBomTotal()">
+    <input type="text" class="bom-unit" placeholder="หน่วยที่ใช้" value="${data?esc(data.unit||data.label||''):''}" oninput="updateBomTotal()">
+    <label class="vcell"><input type="checkbox" class="bom-vat" ${data&&data.vat?'checked':''} onchange="updateBomTotal()"></label>
+    <button class="icon-x xcell" onclick="this.closest('.bom-edit-row').remove();updateBomTotal()"><svg><use href="#i-x"/></svg></button>`;
   document.getElementById('bom-rows').appendChild(div);
+  // ถ้าไม่ได้กำหนดหน่วยที่ใช้ ตั้ง default = หน่วยของวัตถุดิบที่เลือก
+  const sel=div.querySelector('.bom-mat'); const unitInput=div.querySelector('.bom-unit');
+  if(!unitInput.value && sel.selectedOptions[0]) unitInput.placeholder='เช่น '+(sel.selectedOptions[0].dataset.unit||'หน่วย');
+  updateBomTotal();
+}
+/* เปลี่ยนวัตถุดิบ → เติมราคา+placeholder หน่วยจากวัตถุดิบที่เลือก แล้วคำนวณใหม่ */
+function onBomMatChange(sel){
+  const row=sel.closest('.bom-edit-row');
+  const opt=sel.selectedOptions[0];
+  const unitInput=row.querySelector('.bom-unit');
+  const priceInput=row.querySelector('.bom-price');
+  unitInput.placeholder='เช่น '+(opt?.dataset.unit||'หน่วย');
+  if(opt&&opt.dataset.price!=null) priceInput.value=opt.dataset.price; // ดึงราคาวัตถุดิบมาให้ (แก้ได้)
+  updateBomTotal();
+}
+/* คำนวณต้นทุนรวมสด ๆ ในหน้าต่างแก้ไข */
+function updateBomTotal(){
+  const rows=document.querySelectorAll('#bom-rows .bom-edit-row');
+  let total=0;
+  rows.forEach(r=>{
+    total+=calcItemCost({
+      matId:r.querySelector('.bom-mat').value,
+      price:r.querySelector('.bom-price').value,
+      qty:parseFloat(r.querySelector('.bom-qty').value)||0,
+      unit:r.querySelector('.bom-unit').value,
+      vat:r.querySelector('.bom-vat').checked
+    });
+  });
+  const el=document.getElementById('bom-total');
+  if(el) el.textContent=fmtB(total);
 }
 async function saveProduct(){
   const name=document.getElementById('pf-name').value.trim();
@@ -553,10 +798,11 @@ async function saveProduct(){
   const bom=[];
   rows.forEach(r=>{
     const matId=r.querySelector('.bom-mat').value;
+    const price=parseFloat(r.querySelector('.bom-price').value);
     const qty=parseFloat(r.querySelector('.bom-qty').value)||0;
-    const label=r.querySelector('.bom-label').value;
+    const unit=r.querySelector('.bom-unit').value.trim();
     const vat=r.querySelector('.bom-vat').checked;
-    if(matId&&qty>0) bom.push({matId,qty,label,vat});
+    if(matId&&qty>0) bom.push({matId,price:isNaN(price)?null:price,qty,unit,vat});
   });
   if(!bom.length){alert('กรุณาเพิ่มวัตถุดิบอย่างน้อย 1 รายการ');return}
   setLoading('prod-save-btn',true);
@@ -570,7 +816,7 @@ async function saveProduct(){
   else { ({error}=await db.from('products').insert(payload)); }
   setLoading('prod-save-btn',false);
   if(error){showToast('บันทึกล้มเหลว: '+error.message,'error');return}
-  closeModal('prod-modal'); await loadProducts(); renderProducts();
+  closeModal('prod-modal'); await loadProducts(); renderProducts(); window.renderShipments&&window.renderShipments();
   showToast(editingProdId?'แก้ไขสินค้าแล้ว':'เพิ่มสินค้าแล้ว');
 }
 async function delProduct(id){ if(!confirm('ลบสินค้านี้?'))return; await db.from('products').delete().eq('id',id); await loadProducts(); renderProducts(); }
