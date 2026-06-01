@@ -139,24 +139,42 @@
       const dayCost=rows.reduce((s,x)=>s+shipCost(x),0);
       const dayQty=rows.reduce((s,x)=>s+(+x.qty||0),0);
       html+=secLabel(prettyDate(d)||'ไม่ระบุวันที่', `${orderCount(rows)} ออเดอร์ · ${dayQty} ชิ้น`);
-      const body=rows.map((s,i)=>{
-        const cost=shipCost(s);
-        const sub=[s.recipient,s.province].filter(Boolean).join(' · ');
-        const unmatched=!s.product_id && !matchProductBySku(s.sku);
+      // จับกลุ่มรายการตาม Order ID → 1 ออเดอร์ = 1 แถว (มีหลายสินค้าได้)
+      const ordMap=new Map();
+      rows.forEach(s=>{ const k=String(s.order_id||'').trim()||('_'+s.id); if(!ordMap.has(k)) ordMap.set(k,[]); ordMap.get(k).push(s); });
+      let idx=0;
+      const body=[...ordMap.values()].map(items=>{
+        idx++;
+        const first=items[0];
+        const oCost=items.reduce((a,s)=>a+shipCost(s),0);
+        const oQty=items.reduce((a,s)=>a+(+s.qty||0),0);
+        const sub=[first.recipient,first.province].filter(Boolean).join(' · ');
+        const prodList=items.map(s=>{
+          const unmatched=!s.product_id && !matchProductBySku(s.sku);
+          return `<div class="ship-prod">
+            <span class="chiplet sku">${esc(s.sku)||'-'}</span>
+            <span class="pn">${esc(s.product_name)||'(ไม่ระบุสินค้า)'}</span>
+            <span class="pq">×${s.qty}</span>
+            ${unmatched?'<span class="ship-warn" title="ยังไม่ match สินค้า">⚠</span>':''}
+            <button class="icon-x ship-del1" onclick="delShipment('${s.id}')" title="ลบรายการนี้"><svg><use href="#i-x"/></svg></button>
+          </div>`;
+        }).join('');
+        const multi=items.length>1?`<span class="chiplet" style="margin-left:6px;background:var(--accent-soft);color:var(--accent)">${items.length} รายการ</span>`:'';
         return `<tr>
-          <td class="mono ship-i">${i+1}</td>
-          <td class="ship-nm"><div class="nm">${esc(s.product_name)||'(ไม่ระบุสินค้า)'}</div>${sub?`<div class="sub">${esc(sub)}</div>`:''}</td>
-          <td><span class="chiplet sku">${esc(s.sku)||'-'}</span></td>
-          <td class="mono ship-oid">#${esc(s.order_id)}</td>
-          <td class="mono ship-qty">×${s.qty}</td>
-          <td class="mono ship-cost ${cost>0?'pos':'zero'}">${fmtB(cost)}${unmatched?' <span class="ship-warn" title="ยังไม่ match สินค้า">⚠</span>':''}</td>
-          <td class="ship-act"><button class="icon-x" onclick="delShipment('${s.id}')"><svg><use href="#i-x"/></svg></button></td>
+          <td class="mono ship-i">${idx}</td>
+          <td class="ship-order">
+            <div class="ship-oid2">#${esc(first.order_id)||'<span style="color:var(--red)">ไม่มี ID</span>'}${multi}</div>
+            ${sub?`<div class="sub">${esc(sub)}</div>`:''}
+            <div class="ship-prods">${prodList}</div>
+          </td>
+          <td class="mono ship-qty">×${oQty}</td>
+          <td class="mono ship-cost ${oCost>0?'pos':'zero'}">${fmtB(oCost)}</td>
         </tr>`;
       }).join('');
       html+=`<div class="bom-table-wrap"><table class="dtable ship-dtable">
-        <thead><tr><th class="ship-i">#</th><th>สินค้า / ผู้รับ</th><th>SKU</th><th>Order ID</th><th style="text-align:right">จำนวน</th><th style="text-align:right">ต้นทุน ฿</th><th></th></tr></thead>
+        <thead><tr><th class="ship-i">#</th><th>ออเดอร์ / สินค้าที่ขาย</th><th style="text-align:right">จำนวน</th><th style="text-align:right">ต้นทุน ฿</th></tr></thead>
         <tbody>${body}</tbody>
-        <tfoot><tr><td colspan="5" style="text-align:right;font-weight:600">รวม ${prettyDate(d)} · ${dayQty} ชิ้น</td><td class="mono" style="text-align:right;font-weight:700;color:var(--accent)">${fmtB(dayCost)}</td><td></td></tr></tfoot>
+        <tfoot><tr><td colspan="2" style="text-align:right;font-weight:600">รวม ${prettyDate(d)} · ${orderCount(rows)} ออเดอร์ · ${dayQty} ชิ้น</td><td class="mono" style="text-align:right">×${dayQty}</td><td class="mono" style="text-align:right;font-weight:700;color:var(--accent)">${fmtB(dayCost)}</td></tr></tfoot>
       </table></div>`;
     });
     document.getElementById('ship-days').innerHTML=html;
