@@ -745,34 +745,43 @@ function openEditProd(id){
   (p.bom||[]).forEach(b=>addBOMRow(b));
   document.getElementById('prod-modal').classList.add('open');
 }
+/* datalist สำหรับพิมพ์ค้นหาวัตถุดิบในสูตร */
+function ensureMatDatalist(){
+  let dl=document.getElementById('mat-datalist');
+  if(!dl){ dl=document.createElement('datalist'); dl.id='mat-datalist'; document.body.appendChild(dl); }
+  dl.innerHTML=materials.map(m=>`<option value="${esc(m.name)}">${fmtB(m.price)} ฿/${esc(m.unit||'?')}</option>`).join('');
+}
+function matByName(name){
+  const n=String(name||'').trim().toLowerCase();
+  if(!n) return null;
+  return materials.find(m=>(m.name||'').trim().toLowerCase()===n)||null;
+}
 function addBOMRow(data){
+  ensureMatDatalist();
   const div=document.createElement('div');
   div.className='bom-edit-row';
-  const matOpts=materials.map(m=>`<option value="${m.id}" data-unit="${esc(m.unit||'')}" data-price="${+m.price||0}" ${data&&data.matId===m.id?'selected':''}>${m.name} · ${fmtB(m.price)}฿/${m.unit||'?'}</option>`).join('');
-  // ราคาเริ่มต้น: ใช้ค่าที่บันทึกไว้ ถ้าไม่มีดึงจากวัตถุดิบที่เลือก
-  const selMat = (data&&data.matId) ? materials.find(m=>m.id===data.matId) : materials[0];
-  const priceVal = (data&&data.price!=null&&data.price!=='') ? data.price : (selMat?(+selMat.price||0):'');
+  const m0 = (data&&data.matId) ? materials.find(m=>m.id===data.matId) : null;
+  const priceVal = (data&&data.price!=null&&data.price!=='') ? data.price : (m0?(+m0.price||0):'');
   div.innerHTML=`
-    <select class="bom-mat bmat" onchange="onBomMatChange(this)">${matOpts}</select>
+    <input type="text" class="bom-mat bmat" list="mat-datalist" placeholder="พิมพ์หาวัตถุดิบ…" value="${m0?esc(m0.name):''}" oninput="onBomMatChange(this)" autocomplete="off">
     <input type="number" class="bom-price num" placeholder="ราคา" step="0.01" value="${priceVal}" style="text-align:right" oninput="updateBomTotal()">
     <input type="number" class="bom-qty num" placeholder="จำนวน" step="0.001" value="${data?data.qty:''}" style="text-align:right" oninput="updateBomTotal()">
     <input type="text" class="bom-unit" placeholder="หน่วยที่ใช้" value="${data?esc(data.unit||data.label||''):''}" oninput="updateBomTotal()">
     <label class="vcell"><input type="checkbox" class="bom-vat" ${data&&data.vat?'checked':''} onchange="updateBomTotal()"></label>
     <button class="icon-x xcell" onclick="this.closest('.bom-edit-row').remove();updateBomTotal()"><svg><use href="#i-x"/></svg></button>`;
   document.getElementById('bom-rows').appendChild(div);
-  // ถ้าไม่ได้กำหนดหน่วยที่ใช้ ตั้ง default = หน่วยของวัตถุดิบที่เลือก
-  const sel=div.querySelector('.bom-mat'); const unitInput=div.querySelector('.bom-unit');
-  if(!unitInput.value && sel.selectedOptions[0]) unitInput.placeholder='เช่น '+(sel.selectedOptions[0].dataset.unit||'หน่วย');
+  const unitInput=div.querySelector('.bom-unit');
+  if(!unitInput.value && m0) unitInput.placeholder='เช่น '+(m0.unit||'หน่วย');
   updateBomTotal();
 }
-/* เปลี่ยนวัตถุดิบ → เติมราคา+placeholder หน่วยจากวัตถุดิบที่เลือก แล้วคำนวณใหม่ */
-function onBomMatChange(sel){
-  const row=sel.closest('.bom-edit-row');
-  const opt=sel.selectedOptions[0];
-  const unitInput=row.querySelector('.bom-unit');
-  const priceInput=row.querySelector('.bom-price');
-  unitInput.placeholder='เช่น '+(opt?.dataset.unit||'หน่วย');
-  if(opt&&opt.dataset.price!=null) priceInput.value=opt.dataset.price; // ดึงราคาวัตถุดิบมาให้ (แก้ได้)
+/* พิมพ์/เลือกวัตถุดิบ → ถ้าตรงชื่อเป๊ะ เติมราคา+placeholder หน่วยให้ (แก้ได้) */
+function onBomMatChange(el){
+  const row=el.closest('.bom-edit-row');
+  const m=matByName(el.value);
+  if(m){
+    row.querySelector('.bom-unit').placeholder='เช่น '+(m.unit||'หน่วย');
+    row.querySelector('.bom-price').value=+m.price||0;
+  }
   updateBomTotal();
 }
 /* คำนวณต้นทุนรวมสด ๆ ในหน้าต่างแก้ไข */
@@ -780,8 +789,9 @@ function updateBomTotal(){
   const rows=document.querySelectorAll('#bom-rows .bom-edit-row');
   let total=0;
   rows.forEach(r=>{
+    const m=matByName(r.querySelector('.bom-mat').value);
     total+=calcItemCost({
-      matId:r.querySelector('.bom-mat').value,
+      matId:m?m.id:null,
       price:r.querySelector('.bom-price').value,
       qty:parseFloat(r.querySelector('.bom-qty').value)||0,
       unit:r.querySelector('.bom-unit').value,
@@ -796,14 +806,18 @@ async function saveProduct(){
   if(!name){alert('กรุณากรอกชื่อสินค้า');return}
   const rows=document.querySelectorAll('#bom-rows .bom-edit-row');
   const bom=[];
+  let unmatched=0;
   rows.forEach(r=>{
-    const matId=r.querySelector('.bom-mat').value;
+    const matName=r.querySelector('.bom-mat').value.trim();
+    const m=matByName(matName);
     const price=parseFloat(r.querySelector('.bom-price').value);
     const qty=parseFloat(r.querySelector('.bom-qty').value)||0;
     const unit=r.querySelector('.bom-unit').value.trim();
     const vat=r.querySelector('.bom-vat').checked;
-    if(matId&&qty>0) bom.push({matId,price:isNaN(price)?null:price,qty,unit,vat});
+    if(matName && !m) unmatched++;                       // พิมพ์ชื่อแต่ไม่ตรงวัตถุดิบที่มี
+    if(m&&qty>0) bom.push({matId:m.id,price:isNaN(price)?null:price,qty,unit,vat});
   });
+  if(unmatched){ alert(`มีวัตถุดิบ ${unmatched} แถวที่พิมพ์ชื่อไม่ตรงกับฐานข้อมูล — เลือกจากรายการที่ขึ้นมาให้ หรือไปเพิ่มวัตถุดิบก่อน`); return; }
   if(!bom.length){alert('กรุณาเพิ่มวัตถุดิบอย่างน้อย 1 รายการ');return}
   setLoading('prod-save-btn',true);
   const sku=document.getElementById('pf-sku').value.trim();
