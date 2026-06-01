@@ -29,6 +29,12 @@
     return `${+m[3]} ${months[+m[2]]} ${(+m[1])+543-2500}`.replace(' -','');
   }
   function unitCost(productId){ const p=products.find(x=>x.id===productId); return p?calcProductCost(p.bom):0; }
+  /* นับ "คำสั่งซื้อ" ตาม Order ID ที่ไม่ซ้ำ — ออเดอร์ที่มีหลายรายการสินค้านับเป็น 1 */
+  function orderCount(list){
+    const ids=new Set(); let blanks=0;
+    list.forEach(s=>{ const id=String(s.order_id||'').trim(); if(id) ids.add(id); else blanks++; });
+    return ids.size+blanks;
+  }
   /* ต้นทุนสด: คำนวณจากสินค้าที่ผูก (product_id) หรือ match ด้วย SKU ตอนแสดงผล
      → ถ้ากรอกต้นทุน/BOM ทีหลัง ออเดอร์เก่าจะคิดต้นทุนใหม่ให้อัตโนมัติ
      ถ้าหาสินค้าไม่เจอจริง ๆ ค่อย fallback ใช้ค่าที่บันทึกไว้ */
@@ -54,21 +60,21 @@
     let html=`<div class="stat-grid" style="margin-bottom:12px">
       <div class="stat hero"><div class="ico"><svg><use href="#i-ship"/></svg></div>
         <div class="stat-label">วันนี้ · ${prettyDate(today)}</div>
-        <div class="stat-value">${tRows.length}<span class="stat-unit">ออเดอร์</span></div>
+        <div class="stat-value">${orderCount(tRows)}<span class="stat-unit">ออเดอร์</span></div>
         <div class="stat-sub">${tQty} ชิ้น · ต้นทุน ${fmtB(tCost)} ฿</div></div>
-      <div class="stat"><div class="stat-label">ออเดอร์ทั้งหมด</div><div class="stat-value">${shipments.length}</div><div class="stat-sub">ทุกแพลตฟอร์ม</div></div>
+      <div class="stat"><div class="stat-label">ออเดอร์ทั้งหมด</div><div class="stat-value">${orderCount(shipments)}</div><div class="stat-sub">${shipments.length} รายการ · ทุกแพลตฟอร์ม</div></div>
     </div>`;
 
     const rows=dates.map(d=>{
       const list=byDate[d];
-      const counts=PFS.map(([k])=>list.filter(s=>s.platform===k).length);
+      const counts=PFS.map(([k])=>orderCount(list.filter(s=>s.platform===k)));
       const qty=list.reduce((a,s)=>a+(+s.qty||0),0);
       const cost=list.reduce((a,s)=>a+shipCost(s),0);
       const isToday=d===today;
       return `<tr class="${isToday?'ship-today':''}">
         <td class="ship-od">${prettyDate(d)}${isToday?' <span class="chiplet">วันนี้</span>':''}</td>
         ${counts.map(c=>`<td class="mono" style="text-align:right;color:${c?'var(--text)':'var(--text-3)'}">${c||'–'}</td>`).join('')}
-        <td class="mono" style="text-align:right;font-weight:700">${list.length}</td>
+        <td class="mono" style="text-align:right;font-weight:700">${orderCount(list)}</td>
         <td class="mono" style="text-align:right;color:var(--text-2)">${qty}</td>
         <td class="mono pos" style="text-align:right;font-weight:600">${fmtB(cost)}</td>
       </tr>`;
@@ -90,7 +96,7 @@
 
     const mkFBtn=(v,label)=>{
       const list=v==='all'?platformList:platformList.filter(s=>(s.ship_date||'')===v);
-      return `<button class="chip ${dateFilter===v?'active':''}" onclick="setShipDate('${v}')">${label}<span class="cnt">${list.length}</span></button>`;
+      return `<button class="chip ${dateFilter===v?'active':''}" onclick="setShipDate('${v}')">${label}<span class="cnt">${orderCount(list)}</span></button>`;
     };
     let fHTML=mkFBtn('today','วันนี้');
     datesForFilter.filter(d=>d!==today).slice(0,7).forEach(d=>fHTML+=mkFBtn(d,prettyDate(d)));
@@ -122,9 +128,9 @@
         <div class="ico" style="background:color-mix(in srgb,${PF_COLOR[curPlatform]} 16%, transparent);color:${PF_COLOR[curPlatform]}"><svg><use href="#i-ship"/></svg></div>
         <div class="stat-label">${label} · ต้นทุนรวม</div>
         <div class="stat-value" style="color:${PF_COLOR[curPlatform]}">${fmtB(grand)}<span class="stat-unit">฿</span></div>
-        <div class="stat-sub">${list.length} ออเดอร์ · ${totalQty} ชิ้น</div>
+        <div class="stat-sub">${orderCount(list)} ออเดอร์ · ${totalQty} ชิ้น</div>
       </div>
-      <div class="stat"><div class="stat-label">ออเดอร์</div><div class="stat-value">${list.length}</div><div class="stat-sub">รายการ</div></div>
+      <div class="stat"><div class="stat-label">ออเดอร์</div><div class="stat-value">${orderCount(list)}</div><div class="stat-sub">${list.length} รายการ</div></div>
       <div class="stat"><div class="stat-label">จำนวนชิ้น</div><div class="stat-value">${totalQty}</div><div class="stat-sub">ชิ้น</div></div>`;
 
     let html='';
@@ -132,7 +138,7 @@
       const rows=byDate[d];
       const dayCost=rows.reduce((s,x)=>s+shipCost(x),0);
       const dayQty=rows.reduce((s,x)=>s+(+x.qty||0),0);
-      html+=secLabel(prettyDate(d)||'ไม่ระบุวันที่', `${rows.length} ออเดอร์ · ${dayQty} ชิ้น`);
+      html+=secLabel(prettyDate(d)||'ไม่ระบุวันที่', `${orderCount(rows)} ออเดอร์ · ${dayQty} ชิ้น`);
       const body=rows.map((s,i)=>{
         const cost=shipCost(s);
         const sub=[s.recipient,s.province].filter(Boolean).join(' · ');
@@ -258,11 +264,13 @@
     const s=String(sku).trim().toLowerCase();
     return products.find(p=>(p.sku||'').trim().toLowerCase()===s)||null;
   }
-  /* ออเดอร์นี้มีในฐานข้อมูลแล้วไหม (เช็คจาก Order ID ต่อแพลตฟอร์มที่กำลังนำเข้า) */
-  function isDupOrder(orderId){
+  /* รายการนี้ซ้ำในฐานข้อมูลไหม — เช็ค Order ID + SKU ร่วมกัน
+     (ออเดอร์เดียวกันที่มีหลายสินค้า/SKU ต่างกัน = ไม่ซ้ำ, แต่อัปไฟล์เดิมซ้ำ = ซ้ำ) */
+  function isDupOrder(orderId, sku){
     const id=String(orderId||'').trim();
     if(!id) return false;
-    return shipments.some(s=>s.platform===curPlatform && String(s.order_id||'').trim()===id);
+    const sk=String(sku||'').trim().toLowerCase();
+    return shipments.some(s=>s.platform===curPlatform && String(s.order_id||'').trim()===id && String(s.sku||'').trim().toLowerCase()===sk);
   }
 
   function renderShipRows(){
@@ -272,8 +280,9 @@
     tb.innerHTML=shipRows.map((r,i)=>{
       const opts=products.map(p=>`<option value="${p.id}" ${r.product_id===p.id?'selected':''}>${p.name}${p.sku?' ['+p.sku+']':''}</option>`).join('');
       const oid=String(r.order_id||'').trim();
-      const dup=!!oid && (isDupOrder(oid) || !!seen[oid]);
-      if(oid) seen[oid]=1;
+      const key=oid+'|'+String(r.sku||'').trim().toLowerCase();
+      const dup=!!oid && (isDupOrder(oid,r.sku) || !!seen[key]);
+      if(oid) seen[key]=1;
       if(dup) dupCount++; else grand+=+r.cost||0;
       const cls=dup?'dup':(r.product_id?'matched':'unmatched');
       return `<tr class="${cls}">
@@ -306,8 +315,9 @@
       const rows=[];
       shipRows.filter(r=>r.order_id).forEach(r=>{
         const oid=String(r.order_id).trim();
-        if(isDupOrder(oid) || seen[oid]){ dupCount++; return; }   // ข้ามออเดอร์ซ้ำ
-        seen[oid]=1;
+        const key=oid+'|'+String(r.sku||'').trim().toLowerCase();
+        if(isDupOrder(oid,r.sku) || seen[key]){ dupCount++; return; }   // ข้ามรายการซ้ำ (Order ID + SKU)
+        seen[key]=1;
         rows.push({
           platform:curPlatform, order_id:r.order_id, sku:r.sku, product_name:r.product_name,
           product_id:r.product_id, qty:+r.qty||1, ship_date:r.ship_date,
@@ -318,7 +328,8 @@
       const {error}=await db.from('shipments').insert(rows);
       if(error) throw error;
       closeModal('ship-pdf-modal'); await loadShipments(); renderShipments();
-      showToast(`บันทึก ${rows.length} ออเดอร์${dupCount?` · ข้ามซ้ำ ${dupCount}`:''}`);
+      const nOrders=orderCount(rows);
+      showToast(`บันทึก ${nOrders} ออเดอร์ (${rows.length} รายการ)${dupCount?` · ข้ามซ้ำ ${dupCount}`:''}`);
     }catch(e){ showToast('บันทึกล้มเหลว: '+e.message,'error'); }
     finally{ btn.disabled=false; btn.textContent='บันทึกทั้งหมด'; }
   }
