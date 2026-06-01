@@ -39,7 +39,7 @@
      → ถ้ากรอกต้นทุน/BOM ทีหลัง ออเดอร์เก่าจะคิดต้นทุนใหม่ให้อัตโนมัติ
      ถ้าหาสินค้าไม่เจอจริง ๆ ค่อย fallback ใช้ค่าที่บันทึกไว้ */
   function shipCost(s){
-    const p = s.product_id ? products.find(x=>x.id===s.product_id) : matchProductBySku(s.sku);
+    const p = s.product_id ? products.find(x=>x.id===s.product_id) : matchProduct(s.sku, s.product_name, s.platform);
     if(p){ const u=calcProductCost(p.bom); if(u>0) return +(u*(+s.qty||0)).toFixed(2); }
     return +s.cost||0;
   }
@@ -150,7 +150,7 @@
         const oQty=items.reduce((a,s)=>a+(+s.qty||0),0);
         const sub=[first.recipient,first.province].filter(Boolean).join(' · ');
         const prodList=items.map(s=>{
-          const unmatched=!s.product_id && !matchProductBySku(s.sku);
+          const unmatched=!s.product_id && !matchProduct(s.sku, s.product_name, s.platform);
           return `<div class="ship-prod">
             <span class="chiplet sku">${esc(s.sku)||'-'}</span>
             <span class="pn">${esc(s.product_name)||'(ไม่ระบุสินค้า)'}</span>
@@ -271,7 +271,7 @@
         arr.forEach(it=>merged.push({...it,__page:i+1}));
       }
       shipRows=merged.map(it=>{
-        const p=matchProductBySku(it.sku);
+        const p=matchProduct(it.sku, it.product_name, curPlatform);
         const unit=p?calcProductCost(p.bom):0;
         return { order_id:it.order_id||'', sku:String(it.sku||''), product_name:it.product_name||'', qty:+it.qty||1,
           ship_date:fileDate, recipient:it.recipient||'', province:it.province||'', __page:it.__page,
@@ -295,6 +295,34 @@
     if(!sku) return null;
     const s=String(sku).trim().toLowerCase();
     return products.find(p=>(p.sku||'').trim().toLowerCase()===s)||null;
+  }
+  /* normalize ชื่อไทยให้ทนการสะกดเพี้ยนจากใบปะหน้า (โดยเฉพาะ Shopee):
+     ำ→า, ตัดวรรณยุกต์/สระบน-ล่าง/พินทุ, ตัดช่องว่าง/อักขระคั่น */
+  function normName(s){
+    return String(s||'').toLowerCase().replace(/ำ/g,'า').replace(/[ัิ-ฺ็-๎]/g,'').replace(/[\s_·.,()\-]/g,'').trim();
+  }
+  function lcsLen(a,b){
+    let best=0; const n=a.length,m=b.length; let prev=new Array(m+1).fill(0);
+    for(let i=1;i<=n;i++){ const cur=new Array(m+1).fill(0);
+      for(let j=1;j<=m;j++){ if(a[i-1]===b[j-1]){ cur[j]=prev[j-1]+1; if(cur[j]>best)best=cur[j]; } }
+      prev=cur; }
+    return best;
+  }
+  /* match สินค้า: SKU ก่อน → ถ้าไม่มี/ไม่ตรง ใช้ชื่อ (เทียบช่วงต้นชื่อ ตัวระบุสินค้า)
+     ใช้กับ Shopee ที่ใบไม่พิมพ์ SKU จึงต้อง match ด้วยชื่อตามแพลตฟอร์ม */
+  function matchProduct(sku, name, platform){
+    const m=matchProductBySku(sku); if(m) return m;
+    const a=normName(name).slice(0,18); if(a.length<6) return null;
+    let best=null,bestScore=0;
+    for(const p of products){
+      let sc=0;
+      for(const c of [p[(platform||'')+'_name'], p.name]){
+        const b=normName(c); if(b.length<6) continue;
+        const l=lcsLen(a,b); if(l>sc) sc=l;
+      }
+      if(sc>bestScore){ bestScore=sc; best=p; }
+    }
+    return bestScore>=8 ? best : null;
   }
   /* รายการนี้ซ้ำในฐานข้อมูลไหม — เช็ค Order ID + SKU ร่วมกัน
      (ออเดอร์เดียวกันที่มีหลายสินค้า/SKU ต่างกัน = ไม่ซ้ำ, แต่อัปไฟล์เดิมซ้ำ = ซ้ำ) */
@@ -334,7 +362,7 @@
   }
 
   function shipUpdate(i,k,v){ shipRows[i][k]=v; }
-  function shipAutoMatch(i){ const r=shipRows[i]; const p=matchProductBySku(r.sku); r.product_id=p?p.id:null; shipRecalc(i); renderShipRows(); }
+  function shipAutoMatch(i){ const r=shipRows[i]; const p=matchProduct(r.sku, r.product_name, curPlatform); r.product_id=p?p.id:null; shipRecalc(i); renderShipRows(); }
   function shipRecalc(i){ const r=shipRows[i]; const unit=r.product_id?unitCost(r.product_id):0; r.unit_cost=unit; r.cost=+(unit*(+r.qty||0)).toFixed(2); }
   function shipRowDel(i){ shipRows.splice(i,1); renderShipRows(); }
 
