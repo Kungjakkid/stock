@@ -214,10 +214,23 @@
   }
 
   function platformPrompt(){
-    return 'คุณกำลังอ่านใบปะหน้าพัสดุ (shipping label) ภาษาไทย หลายออเดอร์ในไฟล์เดียว (1 หน้า = 1 ออเดอร์)\n'+
-      'ดึงข้อมูลทุกออเดอร์ออกมาเป็น JSON array เท่านั้น ห้ามมีข้อความอื่น ห้ามมี markdown:\n'+
-      '[{"order_id":"เลข Order ID","sku":"Seller SKU เช่น 0001 0008","product_name":"ชื่อสินค้าเต็มตามที่เขียน","qty":จำนวนตัวเลข,"ship_date":"yyyy-mm-dd","recipient":"ชื่อผู้รับ","province":"จังหวัดผู้รับ"}]\n'+
-      'หลักการ:\n- คัดลอกตัวอักษรไทยตามที่เห็นเป๊ะๆ ห้ามเดา ห้ามแต่งคำใหม่\n- ถ้าไม่พบ field ให้ใส่ "" หรือ 0 ห้ามข้าม\n- ทุกออเดอร์ในไฟล์ต้องอยู่ใน array (สำคัญมาก ถ้ามี 13 ออเดอร์ ต้องคืน 13 elements)\n';
+    return 'นี่คือใบปะหน้าพัสดุ (shipping label) ภาษาไทย "1 หน้านี้ = 1 ออเดอร์"\n'+
+      'ดึงข้อมูลออเดอร์นี้ออกมาเป็น JSON array (ปกติ 1 element; ถ้าใบนี้มีหลายสินค้า/SKU ให้แยกเป็นหลาย element โดยใช้ order_id เดียวกัน) ห้ามมีข้อความอื่น ห้ามมี markdown:\n'+
+      '[{"order_id":"เลข Order ID / เลขคำสั่งซื้อ","sku":"Seller SKU เช่น 0001 0008","product_name":"ชื่อสินค้าเต็มตามที่เขียน","qty":จำนวนตัวเลข,"recipient":"ชื่อผู้รับ","province":"จังหวัดผู้รับ"}]\n'+
+      'หลักการ:\n- คัดลอกตัวอักษรไทยตามที่เห็นเป๊ะๆ ห้ามเดา ห้ามแต่งคำใหม่\n- order_id สำคัญที่สุด พยายามอ่านให้ได้เสมอ (มักเป็นเลขยาวใต้/ข้างบาร์โค้ด) ถ้าอ่านไม่ออกจริงๆ ใส่ ""\n- ถ้าไม่พบ field อื่นให้ใส่ "" หรือ 0\n- ต้องคืนอย่างน้อย 1 element สำหรับหน้านี้เสมอ ห้ามคืน array ว่าง\n';
+  }
+
+  async function callAI(imgs){
+    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','content-type':'application/json','anthropic-dangerous-direct-browser-access':'true'},
+      body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:2048, messages:[{role:'user',content:[...imgs,{type:'text',text:platformPrompt()}]}] })
+    });
+    const json=await resp.json();
+    if(!resp.ok) throw new Error(json.error?.message||'API error');
+    const text=json.content[0].text.trim().replace(/```json|```/g,'').trim();
+    let arr; try{ arr=JSON.parse(text); }catch(e){ const m=text.match(/\[[\s\S]*\]/); arr=m?JSON.parse(m[0]):[]; }
+    return Array.isArray(arr)?arr:[];
   }
 
   async function analyzeShipPdf(){
@@ -228,33 +241,34 @@
     try{
       prog.textContent='แปลง PDF เป็นรูป...';
       const allImgs=await renderPdfPagesToImages(shipPdfFile, 2.2);
-      const BATCH=5; let merged=[];
-      for(let i=0;i<allImgs.length;i+=BATCH){
-        const chunk=allImgs.slice(i,i+BATCH);
-        prog.textContent=`AI กำลังอ่าน ${i+1}–${Math.min(i+BATCH,allImgs.length)}/${allImgs.length} หน้า...`;
-        const resp=await fetch('https://api.anthropic.com/v1/messages',{
-          method:'POST',
-          headers:{'x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','content-type':'application/json','anthropic-dangerous-direct-browser-access':'true'},
-          body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:4096, messages:[{role:'user',content:[...chunk,{type:'text',text:platformPrompt()}]}] })
-        });
-        const json=await resp.json();
-        if(!resp.ok) throw new Error(json.error?.message||'API error');
-        const text=json.content[0].text.trim().replace(/```json|```/g,'').trim();
-        let arr; try{ arr=JSON.parse(text); }catch(e){ const m=text.match(/\[[\s\S]*\]/); arr=m?JSON.parse(m[0]):[]; }
-        if(Array.isArray(arr)) merged=merged.concat(arr);
-      }
+      const pages=allImgs.length;
       const fileDate=document.getElementById('ship-date-input').value||todayISO();
+      const merged=[];
+      // อ่านทีละหน้า → การันตี 1 หน้า = อย่างน้อย 1 แถว (ไม่ตกหน้า)
+      for(let i=0;i<pages;i++){
+        prog.textContent=`AI กำลังอ่านหน้า ${i+1}/${pages}...`;
+        let arr=[];
+        try{ arr=await callAI([allImgs[i]]); }catch(e){ /* หน้านี้พลาด */ }
+        if(!arr.length) arr=[{order_id:'',sku:'',product_name:'',qty:1}]; // คงไว้ 1 แถวต่อหน้า กันจำนวนขาด
+        arr.forEach(it=>merged.push({...it,__page:i+1}));
+      }
       shipRows=merged.map(it=>{
         const p=matchProductBySku(it.sku);
         const unit=p?calcProductCost(p.bom):0;
         return { order_id:it.order_id||'', sku:String(it.sku||''), product_name:it.product_name||'', qty:+it.qty||1,
-          ship_date:fileDate, recipient:it.recipient||'', province:it.province||'',
+          ship_date:fileDate, recipient:it.recipient||'', province:it.province||'', __page:it.__page,
           product_id:p?p.id:null, unit_cost:unit, cost:+(unit*(+it.qty||1)).toFixed(2) };
       });
       renderShipRows();
       document.getElementById('ship-items-wrap').style.display='block';
       document.getElementById('ship-save-btn').style.display='inline-flex';
-      showToast('อ่านได้ '+shipRows.length+' ออเดอร์');
+      const gotOrders=orderCount(shipRows);
+      const noId=shipRows.filter(r=>!String(r.order_id||'').trim()).length;
+      if(gotOrders<pages || noId){
+        showToast(`⚠ ไฟล์มี ${pages} หน้า แต่อ่านได้ ${gotOrders} ออเดอร์${noId?` · ${noId} แถวไม่มี Order ID`:''} — ตรวจ/แก้แถวสีแดงก่อนบันทึก`,'error');
+      } else {
+        showToast(`อ่านได้ครบ ${gotOrders} ออเดอร์ (${pages} หน้า)`);
+      }
     }catch(e){ showToast('วิเคราะห์ไม่สำเร็จ: '+e.message,'error'); }
     finally{ btn.disabled=false; btn.innerHTML='<svg><use href="#i-spark"/></svg> วิเคราะห์ด้วย AI'; prog.style.display='none'; }
   }
@@ -286,7 +300,7 @@
       if(dup) dupCount++; else grand+=+r.cost||0;
       const cls=dup?'dup':(r.product_id?'matched':'unmatched');
       return `<tr class="${cls}">
-        <td><input type="text" class="mono" value="${esc(r.order_id)}" onchange="shipUpdate(${i},'order_id',this.value);renderShipRows()" style="width:130px">${dup?'<span class="dup-badge">ซ้ำ</span>':''}</td>
+        <td><input type="text" class="mono" value="${esc(r.order_id)}" onchange="shipUpdate(${i},'order_id',this.value);renderShipRows()" style="width:130px" placeholder="${r.__page?'หน้า '+r.__page:''}">${dup?'<span class="dup-badge">ซ้ำ</span>':(!oid?'<span class="dup-badge" style="background:var(--red)">ไม่มี ID</span>':'')}</td>
         <td><input type="text" value="${esc(r.sku)}" onchange="shipUpdate(${i},'sku',this.value);shipAutoMatch(${i})" style="width:64px"></td>
         <td><input type="text" value="${esc(r.product_name)}" onchange="shipUpdate(${i},'product_name',this.value)" style="min-width:130px"></td>
         <td><input type="number" class="num" value="${r.qty}" step="1" onchange="shipUpdate(${i},'qty',parseFloat(this.value)||1);shipRecalc(${i});renderShipRows()" style="width:54px;text-align:right"></td>
@@ -313,6 +327,8 @@
     try{
       const seen={}; let dupCount=0;
       const rows=[];
+      const noId=shipRows.filter(r=>!String(r.order_id||'').trim()).length;
+      if(noId && !confirm(`มี ${noId} แถวที่ไม่มี Order ID จะไม่ถูกบันทึก (จำนวนออเดอร์จะขาด)\nกรอก Order ID ให้ครบก่อนจะดีกว่า — กดตกลงเพื่อบันทึกเฉพาะแถวที่มี ID, ยกเลิกเพื่อกลับไปแก้`)){ btn.disabled=false; btn.textContent='บันทึกทั้งหมด'; return; }
       shipRows.filter(r=>r.order_id).forEach(r=>{
         const oid=String(r.order_id).trim();
         const key=oid+'|'+String(r.sku||'').trim().toLowerCase();
