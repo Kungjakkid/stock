@@ -232,10 +232,11 @@
   }
 
   function platformPrompt(){
-    return 'นี่คือใบปะหน้าพัสดุ (shipping label) ภาษาไทย "1 หน้านี้ = 1 ออเดอร์"\n'+
-      'ดึงข้อมูลออเดอร์นี้ออกมาเป็น JSON array (ปกติ 1 element; ถ้าใบนี้มีหลายสินค้า/SKU ให้แยกเป็นหลาย element โดยใช้ order_id เดียวกัน) ห้ามมีข้อความอื่น ห้ามมี markdown:\n'+
-      '[{"order_id":"เลข Order ID / เลขคำสั่งซื้อ","sku":"Seller SKU เช่น 0001 0008","product_name":"ชื่อสินค้าเต็มตามที่เขียน","qty":จำนวนตัวเลข,"recipient":"ชื่อผู้รับ","province":"จังหวัดผู้รับ"}]\n'+
-      'หลักการ:\n- คัดลอกตัวอักษรไทยตามที่เห็นเป๊ะๆ ห้ามเดา ห้ามแต่งคำใหม่\n- order_id สำคัญที่สุด พยายามอ่านให้ได้เสมอ (มักเป็นเลขยาวใต้/ข้างบาร์โค้ด) ถ้าอ่านไม่ออกจริงๆ ใส่ ""\n- ถ้าไม่พบ field อื่นให้ใส่ "" หรือ 0\n- ต้องคืนอย่างน้อย 1 element สำหรับหน้านี้เสมอ ห้ามคืน array ว่าง\n';
+    return 'นี่คือใบปะหน้าพัสดุ (shipping label) ภาษาไทย "หน้านี้คือ 1 ออเดอร์เท่านั้น (order_id เดียว)"\n'+
+      'สำคัญมาก: บนใบมีหลายเลข เช่น เลขคำสั่งซื้อ/Order ID, เลขพัสดุ/Tracking, เลขใต้บาร์โค้ด — ให้ใช้ "เลขคำสั่งซื้อ/Order ID" อันเดียวเท่านั้น ห้ามแยกเลขพัสดุหรือ barcode เป็นออเดอร์ใหม่ ห้ามคืนหลาย order_id\n'+
+      'คืนเป็น JSON array: ปกติ 1 element ต่อหน้า. จะมีหลาย element ได้เฉพาะกรณี "ออเดอร์เดียวกันสั่งหลายสินค้า/หลาย SKU" และทุก element ต้องใช้ order_id เดียวกัน. ห้ามมีข้อความอื่น ห้ามมี markdown:\n'+
+      '[{"order_id":"เลขคำสั่งซื้อ/Order ID","sku":"Seller SKU เช่น 0001 0008","product_name":"ชื่อสินค้าเต็มตามที่เขียน","qty":จำนวนตัวเลข,"recipient":"ชื่อผู้รับ","province":"จังหวัดผู้รับ"}]\n'+
+      'หลักการ:\n- คัดลอกตัวอักษรไทยตามที่เห็นเป๊ะๆ ห้ามเดา\n- order_id อ่านให้ได้เสมอ ถ้าอ่านไม่ออกใส่ ""\n- ไม่พบ field อื่นใส่ "" หรือ 0\n- ต้องคืนอย่างน้อย 1 element ห้ามคืน array ว่าง\n';
   }
 
   async function callAI(imgs){
@@ -268,7 +269,19 @@
         let arr=[];
         try{ arr=await callAI([allImgs[i]]); }catch(e){ /* หน้านี้พลาด */ }
         if(!arr.length) arr=[{order_id:'',sku:'',product_name:'',qty:1}]; // คงไว้ 1 แถวต่อหน้า กันจำนวนขาด
-        arr.forEach(it=>merged.push({...it,__page:i+1}));
+        // บังคับ 1 หน้า = order_id เดียว (กัน AI แยกเลขพัสดุ/barcode เป็นออเดอร์ใหม่)
+        const pageOid=(arr.find(x=>String(x.order_id||'').trim())||{}).order_id||'';
+        // ยุบรายการซ้ำในหน้าเดียว (sku เดียวกัน = สินค้าเดียว) — กัน barcode ซ้ำกลายเป็นหลายแถว
+        const seenSku={}; const pageItems=[];
+        arr.forEach(it=>{
+          const sk=String(it.sku||'').trim().toLowerCase();
+          const pn=String(it.product_name||'').trim().toLowerCase();
+          const k=sk||pn||'_';
+          if(seenSku[k]) return;          // สินค้าซ้ำในหน้าเดียว → ข้าม
+          seenSku[k]=1;
+          pageItems.push({...it, order_id:pageOid, __page:i+1});
+        });
+        pageItems.forEach(it=>merged.push(it));
       }
       shipRows=merged.map(it=>{
         const p=matchProduct(it.sku, it.product_name, curPlatform);
