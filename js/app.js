@@ -862,10 +862,11 @@ async function pdfToImages(file){
   const images=[]; const pages=Math.min(pdf.numPages,5);
   for(let i=1;i<=pages;i++){
     const page=await pdf.getPage(i);
-    const viewport=page.getViewport({scale:3.5});
+    // JPEG scale 2.4 — ไฟล์เล็กพอที่ API รับได้ (PNG 3.5x ใหญ่เกินขนาดจำกัด อ่านไม่ออก)
+    const viewport=page.getViewport({scale:2.4});
     const canvas=document.createElement('canvas'); canvas.width=viewport.width; canvas.height=viewport.height;
     await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
-    images.push({type:'image',source:{type:'base64',media_type:'image/png',data:canvas.toDataURL('image/png').split(',')[1]}});
+    images.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:canvas.toDataURL('image/jpeg',0.85).split(',')[1]}});
   }
   return images;
 }
@@ -913,7 +914,7 @@ async function analyzePdf(){
     const json=await resp.json();
     if(!resp.ok) throw new Error(json.error?.message||'API error');
     const text=json.content[0].text.trim().replace(/```json|```/g,'').trim();
-    const data=JSON.parse(text);
+    let data; try{ data=JSON.parse(text); }catch(e){ const m=text.match(/\{[\s\S]*\}/); if(!m) throw new Error('อ่านผลลัพธ์ไม่ได้'); data=JSON.parse(m[0]); }
     const shop=data.shop||'';
     const date=document.getElementById('pf-date').value||data.date||'';
     document.getElementById('pf-date').value=date;
