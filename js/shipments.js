@@ -16,11 +16,33 @@
   }
 
   function setPlatform(p){
-    curPlatform=p; dateFilter='today';
+    curPlatform=p;   // คงวันที่ที่เลือกไว้ (ไม่รีเซ็ตกลับวันนี้)
     document.querySelectorAll('#ship-tabs .pf-tab').forEach(b=>b.classList.toggle('active', b.dataset.pf===p));
     renderShipments();
   }
   function setShipDate(v){ dateFilter=v; renderShipments(); }
+  /* ส่งออก CSV ของวันที่เลือก (ทุกแพลตฟอร์ม) → เปิดใน Google Sheets/Excel ได้ */
+  function exportShipCSV(){
+    const today=todayISO();
+    const key = dateFilter==='today'?today:dateFilter;
+    const list = dateFilter==='all' ? shipments.slice() : shipments.filter(s=>(s.ship_date||'')===key);
+    if(!list.length){ showToast('ไม่มีออเดอร์ในวันที่เลือก','error'); return; }
+    list.sort((a,b)=>(a.ship_date+a.platform+a.order_id).localeCompare(b.ship_date+b.platform+b.order_id));
+    const PFN={lazada:'Lazada',shopee:'Shopee',tiktok:'TikTok'};
+    const head=['วันที่','แพลตฟอร์ม','เลขที่ออเดอร์','สินค้า','จำนวน','ต้นทุน','ต้นทุนรวม','ลูกค้า','จังหวัด'];
+    const data=list.map(s=>{
+      const c=shipCost(s); const q=+s.qty||1; const unit=q?c/q:c;
+      return [s.ship_date||'', PFN[s.platform]||s.platform,
+        '="'+(s.order_id||'')+'"',          // กัน Sheets แปลงเป็น 1.1E+15
+        s.product_name||'', q, unit.toFixed(2), c.toFixed(2), s.recipient||'', s.province||''];
+    });
+    const esc=x=>{ const v=String(x); return v.startsWith('=')?v:`"${v.replace(/"/g,'""')}"`; };
+    const csv=[head,...data].map(r=>r.map(esc).join(',')).join('\r\n');
+    const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download=`ออเดอร์_${dateFilter==='all'?'ทั้งหมด':key}.csv`; document.body.appendChild(a); a.click(); a.remove();
+    showToast(`ส่งออก ${list.length} รายการ`);
+  }
   /* คลิกจากตารางสรุปรายวัน → ย้อนดูออเดอร์ของวันนั้น (เลือกแพลตฟอร์มได้) */
   function viewShipDay(date, platform){
     if(platform && platform!==curPlatform){
@@ -103,11 +125,14 @@
     const platformList=shipments.filter(s=>s.platform===curPlatform);
     const allDates=[...new Set(platformList.map(s=>s.ship_date||'-'))].sort().reverse();
     const today=todayISO();
-    const datesForFilter=[...new Set([today, ...allDates.filter(d=>d!=='-')])].sort().reverse();
+    // รวมวันที่กำลังเลือกไว้ด้วย เผื่อสลับแพลตฟอร์มแล้ววันนั้นไม่มีออเดอร์ ปุ่มจะได้ไม่หาย
+    const selDate=/^\d{4}-\d{2}-\d{2}$/.test(dateFilter)?dateFilter:null;
+    const datesForFilter=[...new Set([today, ...(selDate?[selDate]:[]), ...allDates.filter(d=>d!=='-')])].sort().reverse();
 
     const mkFBtn=(v,label)=>{
       const list=v==='all'?platformList:platformList.filter(s=>(s.ship_date||'')===v);
-      return `<button class="chip ${dateFilter===v?'active':''}" onclick="setShipDate('${v}')">${label}<span class="cnt">${orderCount(list)}</span></button>`;
+      const act = dateFilter===v || (v==='today'&&dateFilter===today);
+      return `<button class="chip ${act?'active':''}" onclick="setShipDate('${v}')">${label}<span class="cnt">${orderCount(list)}</span></button>`;
     };
     let fHTML=mkFBtn('today','วันนี้');
     datesForFilter.filter(d=>d!==today).slice(0,7).forEach(d=>fHTML+=mkFBtn(d,prettyDate(d)));
@@ -421,7 +446,7 @@
   }
 
   Object.assign(window,{
-    loadShipments, renderShipments, setPlatform, setShipDate, viewShipDay,
+    loadShipments, renderShipments, setPlatform, setShipDate, viewShipDay, exportShipCSV,
     openShipPdfModal, onShipPdfPick, analyzeShipPdf,
     shipUpdate, shipAutoMatch, shipRecalc, shipRowDel,
     renderShipRows, saveShipRows, delShipment,

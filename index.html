@@ -141,7 +141,10 @@
     <section id="page-shipments" class="page">
       <div class="page-head">
         <div><div class="page-title">ส่งออก</div><div class="page-sub">ออเดอร์รายวัน · ต้นทุนต่อแพลตฟอร์ม</div></div>
-        <button class="btn btn-primary btn-sm" onclick="openShipPdfModal()"><svg><use href="#i-doc"/></svg> นำเข้า PDF</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm" onclick="exportShipCSV()"><svg><use href="#i-doc"/></svg> CSV</button>
+          <button class="btn btn-primary btn-sm" onclick="openShipPdfModal()"><svg><use href="#i-doc"/></svg> นำเข้า PDF</button>
+        </div>
       </div>
       <div id="ship-overview"></div>
       <div class="pf-tabs" id="ship-tabs">
