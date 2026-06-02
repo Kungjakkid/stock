@@ -21,6 +21,16 @@
     renderShipments();
   }
   function setShipDate(v){ dateFilter=v; renderShipments(); }
+  /* คลิกจากตารางสรุปรายวัน → ย้อนดูออเดอร์ของวันนั้น (เลือกแพลตฟอร์มได้) */
+  function viewShipDay(date, platform){
+    if(platform && platform!==curPlatform){
+      curPlatform=platform;
+      document.querySelectorAll('#ship-tabs .pf-tab').forEach(b=>b.classList.toggle('active', b.dataset.pf===platform));
+    }
+    dateFilter=date; renderShipments();
+    const el=document.getElementById('ship-days');
+    if(el) el.scrollIntoView({behavior:'smooth',block:'start'});
+  }
 
   function todayISO(){ const d=new Date(); const z=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`; }
   function prettyDate(iso){
@@ -71,9 +81,10 @@
       const qty=list.reduce((a,s)=>a+(+s.qty||0),0);
       const cost=list.reduce((a,s)=>a+shipCost(s),0);
       const isToday=d===today;
-      return `<tr class="${isToday?'ship-today':''}">
+      const isActive=dateFilter===d || (dateFilter==='today'&&isToday);
+      return `<tr class="ship-od-row${isToday?' ship-today':''}${isActive?' ship-active':''}" onclick="viewShipDay('${d}')" title="คลิกเพื่อดูออเดอร์วันนี้">
         <td class="ship-od">${prettyDate(d)}${isToday?' <span class="chiplet">วันนี้</span>':''}</td>
-        ${counts.map(c=>`<td class="mono" style="text-align:right;color:${c?'var(--text)':'var(--text-3)'}">${c||'–'}</td>`).join('')}
+        ${counts.map((c,ci)=>`<td class="mono ${c?'ship-pf-cell':''}" style="text-align:right;color:${c?'var(--text)':'var(--text-3)'}" ${c?`onclick="event.stopPropagation();viewShipDay('${d}','${PFS[ci][0]}')" title="ดู ${PFS[ci][1]} วันนี้"`:''}>${c||'–'}</td>`).join('')}
         <td class="mono" style="text-align:right;font-weight:700">${orderCount(list)}</td>
         <td class="mono" style="text-align:right;color:var(--text-2)">${qty}</td>
         <td class="mono pos" style="text-align:right;font-weight:600">${fmtB(cost)}</td>
@@ -410,7 +421,7 @@
   }
 
   Object.assign(window,{
-    loadShipments, renderShipments, setPlatform, setShipDate,
+    loadShipments, renderShipments, setPlatform, setShipDate, viewShipDay,
     openShipPdfModal, onShipPdfPick, analyzeShipPdf,
     shipUpdate, shipAutoMatch, shipRecalc, shipRowDel,
     renderShipRows, saveShipRows, delShipment,

@@ -599,6 +599,12 @@ details.platnames .inner{margin-top:12px}
 .ship-od-table .ship-od{font-weight:600;font-size:12.5px;white-space:nowrap}
 .ship-od-table .ship-today{background:color-mix(in srgb, var(--accent) 9%, transparent)}
 .ship-od-table .ship-today .ship-od{color:var(--accent)}
+.ship-od-row{cursor:pointer;transition:background .12s}
+.ship-od-row:hover{background:var(--surface-2)}
+.ship-od-table .ship-active{background:color-mix(in srgb, var(--accent) 16%, transparent)}
+.ship-od-table .ship-active .ship-od{color:var(--accent);font-weight:700}
+.ship-od-table .ship-pf-cell{cursor:pointer;border-radius:6px}
+.ship-od-table .ship-pf-cell:hover{background:color-mix(in srgb, var(--accent) 18%, transparent)}
 /* ตารางส่งออก */
 .ship-dtable{min-width:560px}
 .ship-dtable td{padding:8px 10px;vertical-align:middle}
