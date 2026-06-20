@@ -17,7 +17,7 @@
   // apply theme before paint to avoid flash
   (function(){try{var t=localStorage.getItem('cost-theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
 </script>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=20260620">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs" type="module"></script>
 <script type="module">
@@ -331,18 +331,18 @@
     <h3 id="ship-pdf-title">นำเข้าออเดอร์จาก PDF</h3>
     <div class="field">
       <div id="ship-pdf-drop" class="dropzone" onclick="document.getElementById('ship-pdf-file').click()">
-        <div id="ship-pdf-info"><svg><use href="#i-doc"/></svg>คลิก/ลากไฟล์ PDF ใบปะหน้าพัสดุ (หลายออเดอร์ในไฟล์เดียว)</div>
+        <div id="ship-pdf-info"><svg><use href="#i-doc"/></svg>คลิก/ลากไฟล์ PDF — เลือกได้หลายไฟล์ (Lazada/Shopee/TikTok) ระบบเดาแพลตฟอร์ม+วันจากชื่อไฟล์ให้</div>
       </div>
-      <input type="file" id="ship-pdf-file" accept="application/pdf" style="display:none" onchange="onShipPdfPick()">
+      <input type="file" id="ship-pdf-file" accept="application/pdf" multiple style="display:none" onchange="onShipPdfPick()">
     </div>
-    <div class="field"><label class="fl">วันส่ง (ใช้กับทุกออเดอร์ — default = วันนี้)</label><input type="date" id="ship-date-input"></div>
+    <div class="field"><label class="fl">วันส่ง (ใช้เมื่อชื่อไฟล์ไม่มีวันที่ — default = วันนี้)</label><input type="date" id="ship-date-input"></div>
     <button class="btn btn-primary btn-block" id="ship-analyze-btn" style="margin-bottom:12px" onclick="analyzeShipPdf()"><svg><use href="#i-spark"/></svg> วิเคราะห์ด้วย AI</button>
     <div id="ship-progress" class="progress-txt" style="display:none"></div>
     <div id="ship-items-wrap" style="display:none">
       <div class="eyebrow" style="margin-bottom:8px">ออเดอร์ที่อ่านได้ — match SKU เพื่อคำนวณต้นทุน</div>
       <div class="tablescroll">
         <table class="dtable">
-          <thead><tr><th>Order ID</th><th>SKU</th><th>สินค้า</th><th>จำนวน</th><th>ผู้รับ</th><th>จังหวัด</th><th>match → สินค้า</th><th>ต้นทุน</th><th></th></tr></thead>
+          <thead><tr><th>แพลตฟอร์ม</th><th>Order ID</th><th>SKU</th><th>สินค้า</th><th>จำนวน</th><th>ผู้รับ</th><th>จังหวัด</th><th>match → สินค้า</th><th>ต้นทุน</th><th></th></tr></thead>
           <tbody id="ship-items"></tbody>
         </table>
       </div>
@@ -361,7 +361,7 @@
 <div class="toast" id="toast"><span class="tdot"></span><span id="toast-msg"></span></div>
 <div class="lightbox" id="lightbox" onclick="this.classList.remove('open')"><img id="lightbox-img" alt=""></div>
 
-<script src="js/app.js"></script>
-<script src="js/shipments.js"></script>
+<script src="js/app.js?v=20260620"></script>
+<script src="js/shipments.js?v=20260620"></script>
 </body>
 </html>

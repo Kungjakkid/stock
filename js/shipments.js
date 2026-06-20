@@ -4,10 +4,31 @@
   let shipments = [];
   let curPlatform = 'lazada';
   let dateFilter = 'today';
-  let shipPdfFile = null;
+  let shipPdfFiles = [];
   let shipRows = [];
 
   const PF_COLOR={lazada:'var(--plat-lazada)',shopee:'var(--plat-shopee)',tiktok:'var(--text)'};
+  const PF_LABEL={lazada:'Lazada',shopee:'Shopee',tiktok:'TikTok'};
+
+  /* เดาแพลตฟอร์มจากชื่อไฟล์ */
+  function detectPlatform(fname){
+    const f=String(fname||'').toLowerCase();
+    if(/lazada|laz/.test(f)) return 'lazada';
+    if(/shopee|shp|spx/.test(f)) return 'shopee';
+    if(/tiktok|tik|tt/.test(f)) return 'tiktok';
+    return null;
+  }
+  /* เดาวันที่จากชื่อไฟล์ เช่น 31:5:69, 30-5-69, 1:6:69 (พ.ศ. 2 หลัก) → yyyy-mm-dd */
+  function detectDate(fname){
+    const m=String(fname||'').match(/(\d{1,2})\s*[:\-\/.]\s*(\d{1,2})\s*[:\-\/.]\s*(\d{2,4})/);
+    if(!m) return null;
+    let d=+m[1], mo=+m[2], y=+m[3];
+    if(y<100) y+=2500;        // 69 → 2569 (พ.ศ.)
+    if(y>2400) y-=543;        // พ.ศ. → ค.ศ.
+    if(mo<1||mo>12||d<1||d>31) return null;
+    const z=n=>String(n).padStart(2,'0');
+    return `${y}-${z(mo)}-${z(d)}`;
+  }
 
   async function loadShipments(){
     const {data,error}=await db.from('shipments').select('*').order('ship_date',{ascending:false}).order('created_at',{ascending:false});
@@ -224,21 +245,34 @@
 
   // ---------- PDF Import ----------
   function openShipPdfModal(){
-    shipPdfFile=null; shipRows=[];
+    shipPdfFiles=[]; shipRows=[];
     document.getElementById('ship-pdf-file').value='';
     document.getElementById('ship-date-input').value=todayISO();
-    document.getElementById('ship-pdf-info').innerHTML='<svg><use href="#i-doc"/></svg>คลิก/ลากไฟล์ PDF ใบปะหน้าพัสดุ';
+    document.getElementById('ship-pdf-info').innerHTML='<svg><use href="#i-doc"/></svg>คลิก/ลากไฟล์ PDF — เลือกได้หลายไฟล์ ระบบเดาแพลตฟอร์ม+วันจากชื่อไฟล์';
     document.getElementById('ship-items-wrap').style.display='none';
     document.getElementById('ship-save-btn').style.display='none';
     document.getElementById('ship-items').innerHTML='';
     document.getElementById('ship-progress').style.display='none';
-    document.getElementById('ship-pdf-title').textContent='นำเข้าจาก PDF — '+curPlatform.toUpperCase();
+    document.getElementById('ship-pdf-title').textContent='นำเข้าออเดอร์จาก PDF';
     document.getElementById('ship-pdf-modal').classList.add('open');
   }
+  function showPickedFiles(){
+    if(!shipPdfFiles.length){ document.getElementById('ship-pdf-info').innerHTML='<svg><use href="#i-doc"/></svg>คลิก/ลากไฟล์ PDF — เลือกได้หลายไฟล์'; return; }
+    const rows=shipPdfFiles.map(f=>{
+      const pf=detectPlatform(f.name), dt=detectDate(f.name);
+      const pfTxt=pf?`<b style="color:${PF_COLOR[pf]}">${PF_LABEL[pf]}</b>`:'<span style="color:var(--red)">? แพลตฟอร์ม</span>';
+      const dTxt=dt?prettyDate(dt):'<span style="color:var(--text-3)">วันตาม default</span>';
+      return `<div style="font-size:12px;padding:2px 0">📎 ${esc(f.name)} → ${pfTxt} · ${dTxt}</div>`;
+    }).join('');
+    document.getElementById('ship-pdf-info').innerHTML=`<div style="text-align:left">${rows}</div>`;
+  }
+  function addShipFiles(fileList){
+    for(const f of fileList){ if(f && f.type==='application/pdf') shipPdfFiles.push(f); }
+    showPickedFiles();
+  }
   function onShipPdfPick(){
-    const f=document.getElementById('ship-pdf-file').files[0]; if(!f) return;
-    shipPdfFile=f;
-    document.getElementById('ship-pdf-info').innerHTML='📎 '+f.name+' ('+(f.size/1024).toFixed(0)+' KB)';
+    shipPdfFiles=[];
+    addShipFiles(document.getElementById('ship-pdf-file').files);
   }
 
   const dz=document.getElementById('ship-pdf-drop');
@@ -247,9 +281,7 @@
     dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
     dz.addEventListener('drop',e=>{
       e.preventDefault(); dz.classList.remove('dragover');
-      const f=e.dataTransfer.files[0]; if(!f) return;
-      const dt=new DataTransfer(); dt.items.add(f);
-      document.getElementById('ship-pdf-file').files=dt.files; onShipPdfPick();
+      addShipFiles(e.dataTransfer.files);
     });
   }
 
@@ -276,54 +308,51 @@
   }
 
   async function callAI(imgs){
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','content-type':'application/json','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:2048, messages:[{role:'user',content:[...imgs,{type:'text',text:platformPrompt()}]}] })
-    });
-    const json=await resp.json();
-    if(!resp.ok) throw new Error(json.error?.message||'API error');
-    const text=json.content[0].text.trim().replace(/```json|```/g,'').trim();
+    const text=(await window.geminiVision(imgs, platformPrompt())).replace(/```json|```/g,'').trim();
     let arr; try{ arr=JSON.parse(text); }catch(e){ const m=text.match(/\[[\s\S]*\]/); arr=m?JSON.parse(m[0]):[]; }
     return Array.isArray(arr)?arr:[];
   }
 
   async function analyzeShipPdf(){
-    if(!shipPdfFile){showToast('กรุณาเลือกไฟล์ PDF','error');return}
+    if(!shipPdfFiles.length){showToast('กรุณาเลือกไฟล์ PDF','error');return}
     const btn=document.getElementById('ship-analyze-btn');
     const prog=document.getElementById('ship-progress');
     btn.disabled=true; btn.textContent='⏳ กำลังแปลงไฟล์...'; prog.style.display='block';
+    const fallbackDate=document.getElementById('ship-date-input').value||todayISO();
     try{
-      prog.textContent='แปลง PDF เป็นรูป...';
-      const allImgs=await renderPdfPagesToImages(shipPdfFile, 2.2);
-      const pages=allImgs.length;
-      const fileDate=document.getElementById('ship-date-input').value||todayISO();
-      const merged=[];
-      // อ่านทีละหน้า → การันตี 1 หน้า = อย่างน้อย 1 แถว (ไม่ตกหน้า)
-      for(let i=0;i<pages;i++){
-        prog.textContent=`AI กำลังอ่านหน้า ${i+1}/${pages}...`;
-        let arr=[];
-        try{ arr=await callAI([allImgs[i]]); }catch(e){ /* หน้านี้พลาด */ }
-        if(!arr.length) arr=[{order_id:'',sku:'',product_name:'',qty:1}]; // คงไว้ 1 แถวต่อหน้า กันจำนวนขาด
-        // บังคับ 1 หน้า = order_id เดียว (กัน AI แยกเลขพัสดุ/barcode เป็นออเดอร์ใหม่)
-        const pageOid=(arr.find(x=>String(x.order_id||'').trim())||{}).order_id||'';
-        // ยุบรายการซ้ำในหน้าเดียว (sku เดียวกัน = สินค้าเดียว) — กัน barcode ซ้ำกลายเป็นหลายแถว
-        const seenSku={}; const pageItems=[];
-        arr.forEach(it=>{
-          const sk=String(it.sku||'').trim().toLowerCase();
-          const pn=String(it.product_name||'').trim().toLowerCase();
-          const k=sk||pn||'_';
-          if(seenSku[k]) return;          // สินค้าซ้ำในหน้าเดียว → ข้าม
-          seenSku[k]=1;
-          pageItems.push({...it, order_id:pageOid, __page:i+1});
-        });
-        pageItems.forEach(it=>merged.push(it));
+      const merged=[]; let totalPages=0; const failedFiles=[]; let failedPages=0;
+      for(let fi=0; fi<shipPdfFiles.length; fi++){
+        const file=shipPdfFiles[fi];
+        const platform=detectPlatform(file.name)||curPlatform;
+        const fileDate=detectDate(file.name)||fallbackDate;
+        let allImgs;
+        try{
+          prog.textContent=`(${fi+1}/${shipPdfFiles.length}) แปลง ${file.name}...`;
+          allImgs=await renderPdfPagesToImages(file, 2.2);
+        }catch(e){ failedFiles.push(file.name); continue; }   // ไฟล์นี้พัง → ข้าม ไม่ล้มทั้งชุด
+        const pages=allImgs.length; totalPages+=pages;
+        for(let i=0;i<pages;i++){
+          prog.textContent=`(${fi+1}/${shipPdfFiles.length}) ${PF_LABEL[platform]} ${prettyDate(fileDate)} หน้า ${i+1}/${pages}...`;
+          let arr=[];
+          // ลองอ่านสูงสุด 2 รอบ (กัน rate limit ทำให้หน้าตกหล่น)
+          for(let t=0;t<2 && !arr.length;t++){
+            try{ arr=await callAI([allImgs[i]]); }catch(e){ if(t===0) await new Promise(r=>setTimeout(r,8000)); }
+          }
+          if(!arr.length){ arr=[{order_id:'',sku:'',product_name:'',qty:1}]; failedPages++; }
+          const pageOid=(arr.find(x=>String(x.order_id||'').trim())||{}).order_id||'';
+          const seenSku={};
+          arr.forEach(it=>{
+            const k=String(it.sku||'').trim().toLowerCase()||String(it.product_name||'').trim().toLowerCase()||'_';
+            if(seenSku[k]) return; seenSku[k]=1;
+            merged.push({...it, order_id:pageOid, platform, ship_date:fileDate, __page:i+1, __file:file.name});
+          });
+        }
       }
       shipRows=merged.map(it=>{
-        const p=matchProduct(it.sku, it.product_name, curPlatform);
+        const p=matchProduct(it.sku, it.product_name, it.platform);
         const unit=p?calcProductCost(p.bom):0;
         return { order_id:it.order_id||'', sku:String(it.sku||''), product_name:it.product_name||'', qty:+it.qty||1,
-          ship_date:fileDate, recipient:it.recipient||'', province:it.province||'', __page:it.__page,
+          platform:it.platform, ship_date:it.ship_date, recipient:it.recipient||'', province:it.province||'', __page:it.__page,
           product_id:p?p.id:null, unit_cost:unit, cost:+(unit*(+it.qty||1)).toFixed(2) };
       });
       renderShipRows();
@@ -331,10 +360,14 @@
       document.getElementById('ship-save-btn').style.display='inline-flex';
       const gotOrders=orderCount(shipRows);
       const noId=shipRows.filter(r=>!String(r.order_id||'').trim()).length;
-      if(gotOrders<pages || noId){
-        showToast(`⚠ ไฟล์มี ${pages} หน้า แต่อ่านได้ ${gotOrders} ออเดอร์${noId?` · ${noId} แถวไม่มี Order ID`:''} — ตรวจ/แก้แถวสีแดงก่อนบันทึก`,'error');
+      const warn=[];
+      if(failedFiles.length) warn.push(`เปิดไม่ได้ ${failedFiles.length} ไฟล์: ${failedFiles.join(', ')}`);
+      if(failedPages) warn.push(`${failedPages} หน้าอ่านไม่ได้ (อาจติด rate limit — แก้ Order ID แถวแดงเอง หรืออัปไฟล์นั้นซ้ำ)`);
+      if(noId) warn.push(`${noId} แถวไม่มี Order ID`);
+      if(warn.length){
+        showToast(`⚠ อ่านได้ ${gotOrders} ออเดอร์ · ${warn.join(' · ')}`,'error');
       } else {
-        showToast(`อ่านได้ครบ ${gotOrders} ออเดอร์ (${pages} หน้า)`);
+        showToast(`อ่านได้ครบ ${gotOrders} ออเดอร์ จาก ${shipPdfFiles.length} ไฟล์`);
       }
     }catch(e){ showToast('วิเคราะห์ไม่สำเร็จ: '+e.message,'error'); }
     finally{ btn.disabled=false; btn.innerHTML='<svg><use href="#i-spark"/></svg> วิเคราะห์ด้วย AI'; prog.style.display='none'; }
@@ -375,11 +408,12 @@
   }
   /* รายการนี้ซ้ำในฐานข้อมูลไหม — เช็ค Order ID + SKU ร่วมกัน
      (ออเดอร์เดียวกันที่มีหลายสินค้า/SKU ต่างกัน = ไม่ซ้ำ, แต่อัปไฟล์เดิมซ้ำ = ซ้ำ) */
-  function isDupOrder(orderId, sku){
+  function isDupOrder(orderId, sku, platform){
     const id=String(orderId||'').trim();
     if(!id) return false;
     const sk=String(sku||'').trim().toLowerCase();
-    return shipments.some(s=>s.platform===curPlatform && String(s.order_id||'').trim()===id && String(s.sku||'').trim().toLowerCase()===sk);
+    const pf=platform||curPlatform;
+    return shipments.some(s=>s.platform===pf && String(s.order_id||'').trim()===id && String(s.sku||'').trim().toLowerCase()===sk);
   }
 
   function renderShipRows(){
@@ -389,13 +423,15 @@
     tb.innerHTML=shipRows.map((r,i)=>{
       const opts=products.map(p=>`<option value="${p.id}" ${r.product_id===p.id?'selected':''}>${p.name}${p.sku?' ['+p.sku+']':''}</option>`).join('');
       const oid=String(r.order_id||'').trim();
-      const key=oid+'|'+String(r.sku||'').trim().toLowerCase();
-      const dup=!!oid && (isDupOrder(oid,r.sku) || !!seen[key]);
+      const pf=r.platform||curPlatform;
+      const key=pf+'|'+oid+'|'+String(r.sku||'').trim().toLowerCase();
+      const dup=!!oid && (isDupOrder(oid,r.sku,pf) || !!seen[key]);
       if(oid) seen[key]=1;
       if(dup) dupCount++; else grand+=+r.cost||0;
       const cls=dup?'dup':(r.product_id?'matched':'unmatched');
       return `<tr class="${cls}">
-        <td><input type="text" class="mono" value="${esc(r.order_id)}" onchange="shipUpdate(${i},'order_id',this.value);renderShipRows()" style="width:130px" placeholder="${r.__page?'หน้า '+r.__page:''}">${dup?'<span class="dup-badge">ซ้ำ</span>':(!oid?'<span class="dup-badge" style="background:var(--red)">ไม่มี ID</span>':'')}</td>
+        <td style="white-space:nowrap"><span class="chiplet" style="background:${PF_COLOR[pf]};color:#fff;font-size:10px">${PF_LABEL[pf]||pf}</span><div class="muted" style="font-size:10px;margin-top:2px">${r.ship_date?prettyDate(r.ship_date):''}</div></td>
+        <td><input type="text" class="mono" value="${esc(r.order_id)}" onchange="shipUpdate(${i},'order_id',this.value);renderShipRows()" style="width:120px" placeholder="${r.__page?'หน้า '+r.__page:''}">${dup?'<span class="dup-badge">ซ้ำ</span>':(!oid?'<span class="dup-badge" style="background:var(--red)">ไม่มี ID</span>':'')}</td>
         <td><input type="text" value="${esc(r.sku)}" onchange="shipUpdate(${i},'sku',this.value);shipAutoMatch(${i})" style="width:64px"></td>
         <td><input type="text" value="${esc(r.product_name)}" onchange="shipUpdate(${i},'product_name',this.value)" style="min-width:130px"></td>
         <td><input type="number" class="num" value="${r.qty}" step="1" onchange="shipUpdate(${i},'qty',parseFloat(this.value)||1);shipRecalc(${i});renderShipRows()" style="width:54px;text-align:right"></td>
@@ -411,7 +447,7 @@
   }
 
   function shipUpdate(i,k,v){ shipRows[i][k]=v; }
-  function shipAutoMatch(i){ const r=shipRows[i]; const p=matchProduct(r.sku, r.product_name, curPlatform); r.product_id=p?p.id:null; shipRecalc(i); renderShipRows(); }
+  function shipAutoMatch(i){ const r=shipRows[i]; const p=matchProduct(r.sku, r.product_name, r.platform||curPlatform); r.product_id=p?p.id:null; shipRecalc(i); renderShipRows(); }
   function shipRecalc(i){ const r=shipRows[i]; const unit=r.product_id?unitCost(r.product_id):0; r.unit_cost=unit; r.cost=+(unit*(+r.qty||0)).toFixed(2); }
   function shipRowDel(i){ shipRows.splice(i,1); renderShipRows(); }
 
@@ -426,12 +462,13 @@
       if(noId && !confirm(`มี ${noId} แถวที่ไม่มี Order ID จะไม่ถูกบันทึก (จำนวนออเดอร์จะขาด)\nกรอก Order ID ให้ครบก่อนจะดีกว่า — กดตกลงเพื่อบันทึกเฉพาะแถวที่มี ID, ยกเลิกเพื่อกลับไปแก้`)){ btn.disabled=false; btn.textContent='บันทึกทั้งหมด'; return; }
       shipRows.filter(r=>r.order_id).forEach(r=>{
         const oid=String(r.order_id).trim();
-        const key=oid+'|'+String(r.sku||'').trim().toLowerCase();
-        if(isDupOrder(oid,r.sku) || seen[key]){ dupCount++; return; }   // ข้ามรายการซ้ำ (Order ID + SKU)
+        const pf=r.platform||curPlatform;
+        const key=pf+'|'+oid+'|'+String(r.sku||'').trim().toLowerCase();
+        if(isDupOrder(oid,r.sku,pf) || seen[key]){ dupCount++; return; }   // ข้ามรายการซ้ำ (แพลตฟอร์ม+Order ID+SKU)
         seen[key]=1;
         rows.push({
-          platform:curPlatform, order_id:r.order_id, sku:r.sku, product_name:r.product_name,
-          product_id:r.product_id, qty:+r.qty||1, ship_date:r.ship_date,
+          platform:pf, order_id:r.order_id, sku:r.sku, product_name:r.product_name,
+          product_id:r.product_id, qty:+r.qty||1, ship_date:r.ship_date||todayISO(),
           recipient:r.recipient, province:r.province, cost:+r.cost||0
         });
       });

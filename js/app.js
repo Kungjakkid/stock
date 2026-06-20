@@ -3,6 +3,43 @@
 const ANTHROPIC_KEY = 'sk-ant-api03-63Z11B4NL5CjEv5xtYBqE5IYcTk1-' +
   'JjE5O9PeWrPCibOYsT9Myuo99vQ-xRI0mIPrzR6u1TyeB' +
   'sFis8dkCvhYg-qUP9ZwAA';
+
+/* ===== Google Gemini (ฟรี) =====
+   เก็บ API key ใน localStorage ของเครื่อง (ไม่อยู่ในโค้ด/ไม่ขึ้น GitHub)
+   เอา key ฟรีจาก https://aistudio.google.com/apikey */
+const GEMINI_MODEL = 'gemini-2.5-flash';       // โมเดลฟรี อ่านรูปได้
+function getGeminiKey(){
+  let k=localStorage.getItem('gemini-key')||'';
+  if(!k){
+    k=(prompt('วาง Gemini API key (เอาฟรีจาก https://aistudio.google.com/apikey)')||'').trim();
+    if(k) localStorage.setItem('gemini-key',k);
+  }
+  return k;
+}
+window.setGeminiKey=k=>{ localStorage.setItem('gemini-key',String(k||'').trim()); showToast&&showToast('บันทึก Gemini key แล้ว'); };
+/* อ่านรูป (vision) ด้วย Gemini — รับ imageParts รูปแบบเดียวกับ Claude แล้วคืนข้อความ */
+async function geminiVision(imageParts, promptText){
+  const GOOGLE_KEY=getGeminiKey();
+  if(!GOOGLE_KEY) throw new Error('ยังไม่ได้ตั้ง Gemini API key');
+  const parts = imageParts.map(p=>({inline_data:{mime_type:p.source.media_type, data:p.source.data}}));
+  parts.push({text:promptText});
+  const body=JSON.stringify({ contents:[{parts}], generationConfig:{temperature:0, maxOutputTokens:8192, thinkingConfig:{thinkingBudget:0}} });
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GOOGLE_KEY}`;
+  for(let attempt=0; attempt<8; attempt++){
+    const resp=await fetch(url,{ method:'POST', headers:{'content-type':'application/json'}, body });
+    if(resp.status===429 || resp.status===503){           // ติด rate limit → รอแล้วลองใหม่ (นานขึ้นเรื่อยๆ)
+      let wait=8000*(attempt+1);
+      try{ const j=await resp.clone().json(); const ra=(j.error?.details||[]).find(d=>d.retryDelay)?.retryDelay; if(ra) wait=Math.max(wait, parseInt(ra)*1000+1000); }catch(e){}
+      await new Promise(r=>setTimeout(r, Math.min(wait,60000)));
+      continue;
+    }
+    const json=await resp.json();
+    if(!resp.ok) throw new Error(json.error?.message||('Gemini error '+resp.status));
+    return (json.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('').trim();
+  }
+  throw new Error('Gemini ติด rate limit — รอสักครู่แล้วลองใหม่');
+}
+window.geminiVision = geminiVision;
 const SUPABASE_URL = 'https://pahfjtmzytcokxmlblea.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9' +
   '.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhaGZqdG16eXRjb2t4bWxibGVhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3NTQ5NTEsImV4cCI6MjA5MzMzMDk1MX0' +
@@ -312,19 +349,10 @@ async function readReceiptOCR(){
   btn.disabled=true; btn.textContent='⏳ กำลังอ่าน...';
   try{
     const b64=await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(file); });
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','content-type':'application/json','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:512,
-        messages:[{role:'user',content:[
-          {type:'image',source:{type:'base64',media_type:file.type,data:b64}},
-          {type:'text',text:'นี่คือใบเสร็จหรือสลิป กรุณาอ่านข้อมูลและตอบเป็น JSON เท่านั้น ไม่มีข้อความอื่น: {"date":"วันที่ dd/mm/yy หรือ dd/mm/yyyy","shop":"ชื่อร้านค้า","name":"ชื่อสินค้าหลัก","qty":"จำนวนและหน่วย","total":ยอดรวมตัวเลขเท่านั้น} ถ้าไม่พบข้อมูลใดให้ใส่ "" หรือ 0'}
-        ]}] })
-    });
-    const json=await resp.json();
-    if(!resp.ok) throw new Error(json.error?.message||'API error');
-    const text=json.content[0].text.trim();
-    const data=JSON.parse(text.replace(/```json|```/g,'').trim());
+    const imgParts=[{type:'image',source:{type:'base64',media_type:file.type,data:b64}}];
+    const prompt='นี่คือใบเสร็จหรือสลิป กรุณาอ่านข้อมูลและตอบเป็น JSON เท่านั้น ไม่มีข้อความอื่น: {"date":"วันที่ dd/mm/yy หรือ dd/mm/yyyy","shop":"ชื่อร้านค้า","name":"ชื่อสินค้าหลัก","qty":"จำนวนและหน่วย","total":ยอดรวมตัวเลขเท่านั้น} ถ้าไม่พบข้อมูลใดให้ใส่ "" หรือ 0';
+    const text=await geminiVision(imgParts, prompt);
+    let data; try{ data=JSON.parse(text.replace(/```json|```/g,'').trim()); }catch(e){ const m=text.match(/\{[\s\S]*\}/); data=m?JSON.parse(m[0]):{}; }
     if(data.date) document.getElementById('ef-date').value=data.date;
     if(data.shop) document.getElementById('ef-shop').value=data.shop;
     if(data.name) document.getElementById('ef-name').value=data.name;
@@ -906,15 +934,8 @@ async function analyzePdf(){
       '{"shop":"ชื่อบริษัทผู้ขายด้านบน","date":"dd/mm/yy","items":['+
       '{"name":"ชื่อสินค้าตามที่เขียน รวมรายละเอียดในวงเล็บ","qty":"น้ำหนักรวม+หน่วย เช่น 105 kg","total":ราคาจำนวนเงินรวมตัวเลขเท่านั้น}'+
       ']}';
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',
-      headers:{'x-api-key':ANTHROPIC_KEY,'anthropic-version':'2023-06-01','content-type':'application/json','anthropic-dangerous-direct-browser-access':'true'},
-      body:JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:4096, messages:[{role:'user',content:[...imgParts,{type:'text',text:prompt}]}] })
-    });
-    const json=await resp.json();
-    if(!resp.ok) throw new Error(json.error?.message||'API error');
-    const text=json.content[0].text.trim().replace(/```json|```/g,'').trim();
-    let data; try{ data=JSON.parse(text); }catch(e){ const m=text.match(/\{[\s\S]*\}/); if(!m) throw new Error('อ่านผลลัพธ์ไม่ได้'); data=JSON.parse(m[0]); }
+    const rawText=(await geminiVision(imgParts, prompt)).replace(/```json|```/g,'').trim();
+    let data; try{ data=JSON.parse(rawText); }catch(e){ const m=rawText.match(/\{[\s\S]*\}/); if(!m) throw new Error('อ่านผลลัพธ์ไม่ได้'); data=JSON.parse(m[0]); }
     const shop=data.shop||'';
     const date=document.getElementById('pf-date').value||data.date||'';
     document.getElementById('pf-date').value=date;
