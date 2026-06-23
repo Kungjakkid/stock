@@ -960,15 +960,23 @@ async function renderProfit(){
   const monthKeys=Object.keys(months).sort().reverse();
   if(!window._profitMonth || !months[window._profitMonth]) window._profitMonth=monthKeys[0];
   const sel=window._profitMonth;
+  // ทุนจากสูตร BOM เรา (จับคู่ shipments ด้วย platform|order_id) ถ้าไม่มีค่อย fallback เป็น cogs ของ DataGlass
+  const ships=window.getAllShipments?window.getAllShipments():[];
+  const ourCostMap={};
+  ships.forEach(s=>{ const k=s.platform+'|'+String(s.order_id).trim(); ourCostMap[k]=(ourCostMap[k]||0)+(+s.cost||0); });
+  const costOf=o=>{ const k=o.platform+'|'+String(o.order_id).trim(); return (k in ourCostMap)?ourCostMap[k]:(+o.dg_cogs||0); };
+  const profitOf=o=> (+o.net_revenue||0) - costOf(o);
   // month chips
   document.getElementById('profit-months').innerHTML=monthKeys.slice(0,12).map(m=>{
-    const prof=months[m].filter(o=>!DG_DEAD.has(o.order_status)).reduce((s,o)=>s+(+o.dg_profit||0),0);
+    const prof=months[m].filter(o=>!DG_DEAD.has(o.order_status)).reduce((s,o)=>s+profitOf(o),0);
     return `<button class="chip ${m===sel?'active':''}" onclick="setProfitMonth('${m}')">${monthLabel(m)}<span class="cnt">${fmtB(prof)}฿</span></button>`;
   }).join('');
   const list=months[sel];
   const live=list.filter(o=>!DG_DEAD.has(o.order_status));
   const sum=k=>live.reduce((s,o)=>s+(+o[k]||0),0);
-  const paid=sum('buyer_paid'), net=sum('net_revenue'), fee=sum('platform_fee')+sum('shipping_fee'), cogs=sum('dg_cogs'), profit=sum('dg_profit');
+  const paid=sum('buyer_paid'), net=sum('net_revenue'), fee=sum('platform_fee')+sum('shipping_fee');
+  const cogs=live.reduce((s,o)=>s+costOf(o),0), profit=net-cogs;
+  const ourN=live.filter(o=>(o.platform+'|'+String(o.order_id).trim()) in ourCostMap).length;
   const dead=list.length-live.length;
   const margin = net? (profit/net*100) : 0;
   document.getElementById('profit-summary').innerHTML=`
@@ -977,25 +985,26 @@ async function renderProfit(){
       <div class="stat-value">${fmtB(profit)}<span class="stat-unit">฿</span></div>
       <div class="stat-sub">มาร์จิน ${margin.toFixed(1)}% · ${live.length} ออเดอร์${dead?` · ยกเลิก/คืน ${dead}`:''}</div></div>
     <div class="stat"><div class="stat-label">ขายได้สุทธิ (หลังหักแอป)</div><div class="stat-value" style="font-size:20px">${fmtB(net)}</div><div class="stat-sub">ลูกค้าจ่าย ${fmtB(paid)}</div></div>
-    <div class="stat"><div class="stat-label">ทุน (ต้นทุนสินค้า)</div><div class="stat-value" style="font-size:20px;color:var(--accent)">${fmtB(cogs)}</div><div class="stat-sub">ค่าธรรมเนียมแอป ${fmtB(fee)}</div></div>`;
+    <div class="stat"><div class="stat-label">ทุน (สูตร BOM เรา)</div><div class="stat-value" style="font-size:20px;color:var(--accent)">${fmtB(cogs)}</div><div class="stat-sub">ทุนเรา ${ourN}/${live.length} ออเดอร์ · ค่าธรรมเนียม ${fmtB(fee)}</div></div>`;
   // per platform
   const pfRows=['shopee','lazada','tiktok'].map(p=>{
     const g=live.filter(o=>o.platform===p);
     if(!g.length) return '';
     const gs=k=>g.reduce((s,o)=>s+(+o[k]||0),0);
+    const gc=g.reduce((s,o)=>s+costOf(o),0);
     return `<tr><td><span class="chiplet" style="background:${PF_CO[p]};color:#fff;font-size:10px">${PF_LB[p]}</span></td>
       <td class="mono" style="text-align:right">${g.length}</td>
       <td class="mono" style="text-align:right">${fmtB(gs('net_revenue'))}</td>
-      <td class="mono" style="text-align:right;color:var(--accent)">${fmtB(gs('dg_cogs'))}</td>
+      <td class="mono" style="text-align:right;color:var(--accent)">${fmtB(gc)}</td>
       <td class="mono" style="text-align:right;color:var(--red)">${fmtB(gs('platform_fee')+gs('shipping_fee'))}</td>
-      <td class="mono pos" style="text-align:right;font-weight:700">${fmtB(gs('dg_profit'))}</td></tr>`;
+      <td class="mono pos" style="text-align:right;font-weight:700">${fmtB(gs('net_revenue')-gc)}</td></tr>`;
   }).join('');
   // per day
   const byDay={};
   live.forEach(o=>{ (byDay[o.order_date]=byDay[o.order_date]||[]).push(o); });
-  const maxProf=Math.max(1,...Object.values(byDay).map(g=>g.reduce((s,o)=>s+(+o.dg_profit||0),0)));
+  const maxProf=Math.max(1,...Object.values(byDay).map(g=>g.reduce((s,o)=>s+profitOf(o),0)));
   const dayRows=Object.keys(byDay).sort().reverse().map(d=>{
-    const g=byDay[d]; const pr=g.reduce((s,o)=>s+(+o.dg_profit||0),0); const nr=g.reduce((s,o)=>s+(+o.net_revenue||0),0); const cg=g.reduce((s,o)=>s+(+o.dg_cogs||0),0);
+    const g=byDay[d]; const nr=g.reduce((s,o)=>s+(+o.net_revenue||0),0); const cg=g.reduce((s,o)=>s+costOf(o),0); const pr=nr-cg;
     const w=Math.max(2,Math.round(pr/maxProf*100));
     return `<tr><td class="mono" style="white-space:nowrap">${pDate(d)}</td>
       <td class="mono" style="text-align:right;color:var(--text-3)">${g.length}</td>
