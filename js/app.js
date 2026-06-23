@@ -114,7 +114,7 @@ function showPage(name, btn){
   if(name==='products') renderProducts();
   if(name==='profit') renderProfit();
   if(name==='links') renderLinks();
-  if(name==='shipments'){ renderShipments(); updateUnlinkedBadge(); loadDgOrders().then(()=>{ if(document.getElementById('page-shipments').classList.contains('active')) renderShipments(); }); }
+  if(name==='shipments'){ renderShipments(); updateUnlinkedBadge(); loadDgOrders().then(()=>{ if(document.getElementById('page-shipments').classList.contains('active')){ renderShipments(); renderShipPending(); } }); }
 }
 
 /* ============================================================
@@ -945,6 +945,38 @@ async function loadDgOrders(force){
 }
 function dgFor(platform, orderId){ return dgMap[platform+'|'+String(orderId||'').trim()]||null; }
 window.dgFor=dgFor; window.loadDgOrders=loadDgOrders;
+/* แถบ "รอจัดส่ง" (ยังไม่ได้กดจัดส่ง = สถานะ PROCESSING) บนหน้าส่งออก */
+function renderShipPending(){
+  const el=document.getElementById('ship-pending'); if(!el) return;
+  if(!dgOrders||!dgOrders.length){ el.innerHTML=''; return; }
+  // เฉพาะออเดอร์ล่าสุด 5 วัน ที่ยังไม่ส่ง (PROCESSING) — กันสถานะค้างเก่าของ lazada
+  const cut=new Date(Date.now()-5*86400000).toISOString().slice(0,10);
+  const pend=dgOrders.filter(o=>String(o.order_status||'').toUpperCase()==='PROCESSING' && (o.order_date||'')>=cut);
+  if(!pend.length){ el.innerHTML='<div class="pending-bar ok">✅ ส่งครบแล้ว — ไม่มีออเดอร์รอจัดส่ง</div>'; return; }
+  const PFL={lazada:'Lazada',shopee:'Shopee',tiktok:'TikTok'}, PFC={lazada:'var(--plat-lazada)',shopee:'var(--plat-shopee)',tiktok:'var(--plat-tiktok)'};
+  const byPf={}; pend.forEach(o=>{ (byPf[o.platform]=byPf[o.platform]||[]).push(o); });
+  const chips=['shopee','lazada','tiktok'].filter(p=>byPf[p]).map(p=>`<span class="chiplet" style="background:${PFC[p]};color:#fff">${PFL[p]} ${byPf[p].length}</span>`).join(' ');
+  const open=window._pendOpen?'block':'none';
+  const rows=pend.sort((a,b)=>(a.order_date||'').localeCompare(b.order_date||'')).map(o=>{
+    const prod=(o.items&&o.items.length)?o.items.map(i=>esc(i.name||i.sku)).join(', '):'';
+    return `<tr>
+      <td><span class="chiplet" style="background:${PFC[o.platform]};color:#fff;font-size:10px">${PFL[o.platform]||o.platform}</span></td>
+      <td class="mono" style="font-size:11px">#${esc(o.order_id)}</td>
+      <td style="font-size:12px">${prod.slice(0,40)}</td>
+      <td style="font-size:11px;color:var(--text-3)">${esc(o.buyer_name||'')}</td>
+      <td class="mono" style="font-size:11px;white-space:nowrap">${o.order_date?pDate(o.order_date):''}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML=`
+    <div class="pending-bar" onclick="window._pendOpen=!window._pendOpen;renderShipPending()">
+      <span>📦 <b>รอจัดส่ง ${pend.length} ออเดอร์</b> (ยังไม่กดส่ง)</span>
+      <span style="margin-left:auto">${chips} <svg style="width:16px;height:16px;vertical-align:middle"><use href="#i-chev"/></svg></span>
+    </div>
+    <div class="pending-list" style="display:${open}">
+      <div class="bom-table-wrap"><table class="dtable"><thead><tr><th>แพลตฟอร์ม</th><th>Order ID</th><th>สินค้า</th><th>ผู้รับ</th><th>วันที่</th></tr></thead><tbody>${rows}</tbody></table></div>
+    </div>`;
+}
+window.renderShipPending=renderShipPending;
 const DG_DEAD=new Set(['CANCELLED','RETURNED','FAILED']);   // ไม่นับเป็นยอดขาย
 const PF_LB={lazada:'Lazada',shopee:'Shopee',tiktok:'TikTok'};
 const PF_CO={lazada:'var(--plat-lazada)',shopee:'var(--plat-shopee)',tiktok:'var(--plat-tiktok)'};
@@ -1047,7 +1079,7 @@ async function syncDataGlass(){
     const {data,error}=await db.functions.invoke('dg-sync',{body:{days:35}});
     if(error) throw error;
     if(data && data.ok===false) throw new Error(data.error||'sync error');
-    await loadDgOrders(true); renderProfit();
+    await loadDgOrders(true); renderProfit(); if(window.renderShipPending) renderShipPending();
     showToast(`Sync แล้ว: ${data.ordersSynced||0} ออเดอร์ · เติมสินค้า ${data.itemsFilled||0}${data.itemsRemaining>0?` (เหลือ ${data.itemsRemaining} กดซ้ำได้)`:''}`);
   }catch(e){ showToast('Sync ล้มเหลว: '+(e.message||e),'error'); }
   finally{ if(btn){ btn.disabled=false; btn.innerHTML='<svg><use href="#i-spark"/></svg> Sync ตอนนี้'; } }
