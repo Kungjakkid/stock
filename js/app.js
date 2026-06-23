@@ -970,13 +970,14 @@ async function renderProfit(){
   const sum=k=>live.reduce((s,o)=>s+(+o[k]||0),0);
   const paid=sum('buyer_paid'), net=sum('net_revenue'), fee=sum('platform_fee')+sum('shipping_fee'), cogs=sum('dg_cogs'), profit=sum('dg_profit');
   const dead=list.length-live.length;
+  const margin = net? (profit/net*100) : 0;
   document.getElementById('profit-summary').innerHTML=`
     <div class="stat hero"><div class="ico"><svg><use href="#i-trend"/></svg></div>
       <div class="stat-label">กำไรสุทธิ · ${monthLabel(sel)}</div>
       <div class="stat-value">${fmtB(profit)}<span class="stat-unit">฿</span></div>
-      <div class="stat-sub">${live.length} ออเดอร์ขายจริง${dead?` · ยกเลิก/คืน ${dead}`:''}</div></div>
+      <div class="stat-sub">มาร์จิน ${margin.toFixed(1)}% · ${live.length} ออเดอร์${dead?` · ยกเลิก/คืน ${dead}`:''}</div></div>
     <div class="stat"><div class="stat-label">ขายได้สุทธิ (หลังหักแอป)</div><div class="stat-value" style="font-size:20px">${fmtB(net)}</div><div class="stat-sub">ลูกค้าจ่าย ${fmtB(paid)}</div></div>
-    <div class="stat"><div class="stat-label">ค่าธรรมเนียมแอป</div><div class="stat-value" style="font-size:20px;color:var(--red)">${fmtB(fee)}</div><div class="stat-sub">ต้นทุนสินค้า ${fmtB(cogs)}</div></div>`;
+    <div class="stat"><div class="stat-label">ทุน (ต้นทุนสินค้า)</div><div class="stat-value" style="font-size:20px;color:var(--accent)">${fmtB(cogs)}</div><div class="stat-sub">ค่าธรรมเนียมแอป ${fmtB(fee)}</div></div>`;
   // per platform
   const pfRows=['shopee','lazada','tiktok'].map(p=>{
     const g=live.filter(o=>o.platform===p);
@@ -985,6 +986,7 @@ async function renderProfit(){
     return `<tr><td><span class="chiplet" style="background:${PF_CO[p]};color:#fff;font-size:10px">${PF_LB[p]}</span></td>
       <td class="mono" style="text-align:right">${g.length}</td>
       <td class="mono" style="text-align:right">${fmtB(gs('net_revenue'))}</td>
+      <td class="mono" style="text-align:right;color:var(--accent)">${fmtB(gs('dg_cogs'))}</td>
       <td class="mono" style="text-align:right;color:var(--red)">${fmtB(gs('platform_fee')+gs('shipping_fee'))}</td>
       <td class="mono pos" style="text-align:right;font-weight:700">${fmtB(gs('dg_profit'))}</td></tr>`;
   }).join('');
@@ -993,22 +995,23 @@ async function renderProfit(){
   live.forEach(o=>{ (byDay[o.order_date]=byDay[o.order_date]||[]).push(o); });
   const maxProf=Math.max(1,...Object.values(byDay).map(g=>g.reduce((s,o)=>s+(+o.dg_profit||0),0)));
   const dayRows=Object.keys(byDay).sort().reverse().map(d=>{
-    const g=byDay[d]; const pr=g.reduce((s,o)=>s+(+o.dg_profit||0),0); const nr=g.reduce((s,o)=>s+(+o.net_revenue||0),0);
+    const g=byDay[d]; const pr=g.reduce((s,o)=>s+(+o.dg_profit||0),0); const nr=g.reduce((s,o)=>s+(+o.net_revenue||0),0); const cg=g.reduce((s,o)=>s+(+o.dg_cogs||0),0);
     const w=Math.max(2,Math.round(pr/maxProf*100));
     return `<tr><td class="mono" style="white-space:nowrap">${pDate(d)}</td>
       <td class="mono" style="text-align:right;color:var(--text-3)">${g.length}</td>
       <td class="mono" style="text-align:right">${fmtB(nr)}</td>
+      <td class="mono" style="text-align:right;color:var(--accent)">${fmtB(cg)}</td>
       <td class="mono pos" style="text-align:right;font-weight:600">${fmtB(pr)}</td>
-      <td style="width:120px"><div style="background:var(--green);height:8px;border-radius:4px;width:${w}%"></div></td></tr>`;
+      <td style="width:90px"><div style="background:var(--green);height:8px;border-radius:4px;width:${w}%"></div></td></tr>`;
   }).join('');
   body.innerHTML=`
     ${secLabel('แยกตามแพลตฟอร์ม','')}
     <div class="bom-table-wrap"><table class="dtable">
-      <thead><tr><th>แพลตฟอร์ม</th><th style="text-align:right">ออเดอร์</th><th style="text-align:right">ขายสุทธิ</th><th style="text-align:right">ค่าธรรมเนียม</th><th style="text-align:right">กำไร</th></tr></thead>
+      <thead><tr><th>แพลตฟอร์ม</th><th style="text-align:right">ออเดอร์</th><th style="text-align:right">ขายสุทธิ</th><th style="text-align:right">ทุน</th><th style="text-align:right">ค่าธรรมเนียม</th><th style="text-align:right">กำไร</th></tr></thead>
       <tbody>${pfRows}</tbody></table></div>
     ${secLabel('รายวัน','')}
     <div class="bom-table-wrap"><table class="dtable">
-      <thead><tr><th>วันที่</th><th style="text-align:right">ออเดอร์</th><th style="text-align:right">ขายสุทธิ</th><th style="text-align:right">กำไร</th><th>กราฟ</th></tr></thead>
+      <thead><tr><th>วันที่</th><th style="text-align:right">ออเดอร์</th><th style="text-align:right">ขายสุทธิ</th><th style="text-align:right">ทุน</th><th style="text-align:right">กำไร</th><th>กราฟ</th></tr></thead>
       <tbody>${dayRows}</tbody></table></div>`;
 }
 function pDate(iso){ const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/); if(!m) return iso||''; const mo=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']; return `${+m[3]} ${mo[+m[2]]} ${(+m[1])+543-2500}`; }
