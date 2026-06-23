@@ -12,6 +12,13 @@ const SB_KEY=app.match(/SUPABASE_KEY\s*=\s*([\s\S]*?);/)[1].split('+').map(s=>s.
 
 const intDate = s => +s.replace(/-/g,'');                 // 2026-06-01 → 20260601
 const toISO = n => { const s=String(n); return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`; };
+// วันรอบ: สั่งหลังเที่ยง (hour>=12) นับเป็นวันถัดไป
+const roundISO = (datadate, hour) => {
+  if(!datadate) return null;
+  const y=Math.floor(datadate/10000), m=Math.floor(datadate/100)%100, d=datadate%100;
+  let dt=new Date(Date.UTC(y,m-1,d)); if((+hour||0)>=12) dt=new Date(dt.getTime()+86400000);
+  return dt.toISOString().slice(0,10);
+};
 
 async function fetchOrders(){
   const out=[]; let cur=null, lastId=null;
@@ -45,6 +52,7 @@ function mapRow(o){
     platform:(o.platform==='tiktok_shop'?'tiktok':o.platform), order_id:String(o.sourceOrderId||o.orderNumber||''),
     order_status:o.normalizedStatus||o.orderStatus,
     order_date: o.createDatadate?toISO(o.createDatadate):null,
+    round_date: roundISO(o.createDatadate, o.createDatahour),
     buyer_paid:o.totalDiscountedPrice, net_revenue:o.totalOrderRevenue,
     platform_fee:o.totalOrderFee, shipping_fee:o.totalShippingFee,
     dg_cogs:o.totalOrderCogs, dg_profit:o.totalOrderProfit,

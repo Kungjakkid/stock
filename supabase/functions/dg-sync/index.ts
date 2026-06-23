@@ -10,6 +10,7 @@ const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers
 
 const intDate = (d: Date) => +`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
 const toISO = (n:number) => { const s=String(n); return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`; };
+const roundISO = (datadate:number, hour:number) => { if(!datadate) return null; const y=Math.floor(datadate/10000), m=Math.floor(datadate/100)%100, d=datadate%100; let dt=new Date(Date.UTC(y,m-1,d)); if((+hour||0)>=12) dt=new Date(dt.getTime()+86400000); return dt.toISOString().slice(0,10); };
 const pf = (p:string) => p==="tiktok_shop" ? "tiktok" : p;
 
 async function dgPost(path:string, body:unknown){
@@ -47,7 +48,7 @@ Deno.serve(async (req) => {
       const rows=d?.data||[]; if(!rows.length) break;
       const recs=rows.map((o:any)=>({
         dg_order_key:String(o.canonicalOrderId), platform:pf(o.platform), order_id:String(o.sourceOrderId||o.orderNumber||""),
-        order_status:o.normalizedStatus||o.orderStatus, order_date:o.createDatadate?toISO(o.createDatadate):null,
+        order_status:o.normalizedStatus||o.orderStatus, order_date:o.createDatadate?toISO(o.createDatadate):null, round_date:roundISO(o.createDatadate,o.createDatahour),
         buyer_paid:o.totalDiscountedPrice, net_revenue:o.totalOrderRevenue, platform_fee:o.totalOrderFee, shipping_fee:o.totalShippingFee,
         dg_cogs:o.totalOrderCogs, dg_profit:o.totalOrderProfit, unit_count:o.unitCount, buyer_name:o.buyerName, shop_name:o.sourceShopName
       })).filter((r:any)=>r.order_id);
