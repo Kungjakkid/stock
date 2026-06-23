@@ -285,30 +285,25 @@
     });
   }
 
-  async function renderPdfPagesToImages(file, scale=2.5){
-    const buf=await file.arrayBuffer();
-    const pdf=await window.pdfjsLib.getDocument({data:buf}).promise;
-    const out=[];
-    for(let i=1;i<=pdf.numPages;i++){
-      const page=await pdf.getPage(i);
-      const vp=page.getViewport({scale});
-      const canvas=document.createElement('canvas'); canvas.width=vp.width; canvas.height=vp.height;
-      await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
-      out.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:canvas.toDataURL('image/jpeg',0.85).split(',')[1]}});
-    }
-    return out;
+  function fileToB64(file){
+    return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(',')[1]); r.onerror=rej; r.readAsDataURL(file); });
+  }
+  async function pdfPageCount(file){
+    try{ const buf=await file.arrayBuffer(); const pdf=await window.pdfjsLib.getDocument({data:buf}).promise; return pdf.numPages; }catch(e){ return 0; }
   }
 
   function platformPrompt(){
-    return 'นี่คือใบปะหน้าพัสดุ (shipping label) ภาษาไทย "หน้านี้คือ 1 ออเดอร์เท่านั้น (order_id เดียว)"\n'+
-      'สำคัญมาก: บนใบมีหลายเลข เช่น เลขคำสั่งซื้อ/Order ID, เลขพัสดุ/Tracking, เลขใต้บาร์โค้ด — ให้ใช้ "เลขคำสั่งซื้อ/Order ID" อันเดียวเท่านั้น ห้ามแยกเลขพัสดุหรือ barcode เป็นออเดอร์ใหม่ ห้ามคืนหลาย order_id\n'+
-      'คืนเป็น JSON array: ปกติ 1 element ต่อหน้า. จะมีหลาย element ได้เฉพาะกรณี "ออเดอร์เดียวกันสั่งหลายสินค้า/หลาย SKU" และทุก element ต้องใช้ order_id เดียวกัน. ห้ามมีข้อความอื่น ห้ามมี markdown:\n'+
+    return 'นี่คือไฟล์ PDF ใบปะหน้าพัสดุ (shipping label) ภาษาไทย หลายหน้า "1 หน้า = 1 ออเดอร์ (order_id เดียว)"\n'+
+      'อ่านทุกหน้า คืนเป็น JSON array เท่านั้น ห้ามมีข้อความอื่น ห้ามมี markdown:\n'+
       '[{"order_id":"เลขคำสั่งซื้อ/Order ID","sku":"Seller SKU เช่น 0001 0008","product_name":"ชื่อสินค้าเต็มตามที่เขียน","qty":จำนวนตัวเลข,"recipient":"ชื่อผู้รับ","province":"จังหวัดผู้รับ"}]\n'+
-      'หลักการ:\n- คัดลอกตัวอักษรไทยตามที่เห็นเป๊ะๆ ห้ามเดา\n- order_id อ่านให้ได้เสมอ ถ้าอ่านไม่ออกใส่ ""\n- ไม่พบ field อื่นใส่ "" หรือ 0\n- ต้องคืนอย่างน้อย 1 element ห้ามคืน array ว่าง\n';
+      'สำคัญมาก: บนใบมีหลายเลข (Order ID, เลขพัสดุ/Tracking, barcode) ใช้ "เลขคำสั่งซื้อ/Order ID" อันเดียวต่อหน้า ห้ามแยกเลขพัสดุเป็นออเดอร์ใหม่\n'+
+      '1 หน้า = 1 element (ยกเว้นหน้าเดียวมีหลายสินค้า ให้ทุก element ใช้ order_id เดียวกัน)\n'+
+      'คัดลอกตัวอักษรไทยตามที่เห็นเป๊ะๆ ห้ามเดา · order_id อ่านให้ได้เสมอ ถ้าไม่เจอใส่ "" · field อื่นไม่พบใส่ "" หรือ 0';
   }
 
-  async function callAI(imgs){
-    const text=(await window.geminiVision(imgs, platformPrompt())).replace(/```json|```/g,'').trim();
+  /* ส่ง PDF ทั้งไฟล์ให้ Gemini อ่านทีเดียว (1 call/ไฟล์ — เร็ว เสถียร ไม่ชน rate limit) */
+  async function callAIPdf(b64){
+    const text=(await window.geminiVision([{source:{media_type:'application/pdf',data:b64}}], platformPrompt())).replace(/```json|```/g,'').trim();
     let arr; try{ arr=JSON.parse(text); }catch(e){ const m=text.match(/\[[\s\S]*\]/); arr=m?JSON.parse(m[0]):[]; }
     return Array.isArray(arr)?arr:[];
   }
@@ -317,36 +312,36 @@
     if(!shipPdfFiles.length){showToast('กรุณาเลือกไฟล์ PDF','error');return}
     const btn=document.getElementById('ship-analyze-btn');
     const prog=document.getElementById('ship-progress');
-    btn.disabled=true; btn.textContent='⏳ กำลังแปลงไฟล์...'; prog.style.display='block';
+    btn.disabled=true; btn.textContent='⏳ กำลังอ่านไฟล์...'; prog.style.display='block';
     const fallbackDate=document.getElementById('ship-date-input').value||todayISO();
     try{
-      const merged=[]; let totalPages=0; const failedFiles=[]; let failedPages=0;
+      const merged=[]; let totalPages=0; const failedFiles=[];
       for(let fi=0; fi<shipPdfFiles.length; fi++){
         const file=shipPdfFiles[fi];
         const platform=detectPlatform(file.name)||curPlatform;
         const fileDate=detectDate(file.name)||fallbackDate;
-        let allImgs;
+        prog.textContent=`(${fi+1}/${shipPdfFiles.length}) ${PF_LABEL[platform]} ${prettyDate(fileDate)} กำลังอ่าน...`;
+        let arr=[];
         try{
-          prog.textContent=`(${fi+1}/${shipPdfFiles.length}) แปลง ${file.name}...`;
-          allImgs=await renderPdfPagesToImages(file, 2.2);
-        }catch(e){ failedFiles.push(file.name); continue; }   // ไฟล์นี้พัง → ข้าม ไม่ล้มทั้งชุด
-        const pages=allImgs.length; totalPages+=pages;
-        for(let i=0;i<pages;i++){
-          prog.textContent=`(${fi+1}/${shipPdfFiles.length}) ${PF_LABEL[platform]} ${prettyDate(fileDate)} หน้า ${i+1}/${pages}...`;
-          let arr=[];
-          // ลองอ่านสูงสุด 2 รอบ (กัน rate limit ทำให้หน้าตกหล่น)
-          for(let t=0;t<2 && !arr.length;t++){
-            try{ arr=await callAI([allImgs[i]]); }catch(e){ if(t===0) await new Promise(r=>setTimeout(r,8000)); }
-          }
-          if(!arr.length){ arr=[{order_id:'',sku:'',product_name:'',qty:1}]; failedPages++; }
-          const pageOid=(arr.find(x=>String(x.order_id||'').trim())||{}).order_id||'';
+          const b64=await fileToB64(file);
+          totalPages += await pdfPageCount(file);
+          arr=await callAIPdf(b64);
+        }catch(e){ failedFiles.push(file.name+' ('+e.message+')'); continue; }
+        if(!arr.length){ failedFiles.push(file.name+' (อ่านไม่ได้)'); continue; }
+        // จัดกลุ่มต่อ order_id เพื่อยุบสินค้าซ้ำในออเดอร์เดียวกัน
+        const byOrder={};
+        arr.forEach(it=>{
+          const oid=String(it.order_id||'').trim();
+          (byOrder[oid]=byOrder[oid]||[]).push(it);
+        });
+        Object.values(byOrder).forEach(items=>{
           const seenSku={};
-          arr.forEach(it=>{
+          items.forEach(it=>{
             const k=String(it.sku||'').trim().toLowerCase()||String(it.product_name||'').trim().toLowerCase()||'_';
             if(seenSku[k]) return; seenSku[k]=1;
-            merged.push({...it, order_id:pageOid, platform, ship_date:fileDate, __page:i+1, __file:file.name});
+            merged.push({...it, platform, ship_date:fileDate, __file:file.name});
           });
-        }
+        });
       }
       shipRows=merged.map(it=>{
         const p=matchProduct(it.sku, it.product_name, it.platform);
@@ -361,9 +356,9 @@
       const gotOrders=orderCount(shipRows);
       const noId=shipRows.filter(r=>!String(r.order_id||'').trim()).length;
       const warn=[];
-      if(failedFiles.length) warn.push(`เปิดไม่ได้ ${failedFiles.length} ไฟล์: ${failedFiles.join(', ')}`);
-      if(failedPages) warn.push(`${failedPages} หน้าอ่านไม่ได้ (อาจติด rate limit — แก้ Order ID แถวแดงเอง หรืออัปไฟล์นั้นซ้ำ)`);
+      if(failedFiles.length) warn.push(`อ่านไม่ได้ ${failedFiles.length} ไฟล์: ${failedFiles.join(' · ')}`);
       if(noId) warn.push(`${noId} แถวไม่มี Order ID`);
+      if(totalPages && gotOrders<totalPages) warn.push(`ไฟล์รวม ${totalPages} หน้า แต่ได้ ${gotOrders} ออเดอร์ — ตรวจให้ครบ`);
       if(warn.length){
         showToast(`⚠ อ่านได้ ${gotOrders} ออเดอร์ · ${warn.join(' · ')}`,'error');
       } else {
