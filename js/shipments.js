@@ -217,12 +217,27 @@
           </div>`;
         }).join('');
         const multi=items.length>1?`<span class="chiplet" style="margin-left:6px;background:var(--accent-soft);color:var(--accent)">${items.length} รายการ</span>`:'';
+        // การเงินจาก DataGlass (ถ้ามี)
+        const dg=window.dgFor?window.dgFor(first.platform, first.order_id):null;
+        let fin='';
+        if(dg){
+          const dead=['CANCELLED','RETURNED','FAILED'].includes(dg.order_status);
+          const profit=(dg.net_revenue!=null)?(+dg.net_revenue - oCost):null; // กำไร = ขายสุทธิ − ต้นทุนเรา
+          fin=`<div class="ship-fin">
+            <span class="chiplet" style="background:${dead?'var(--red)':'var(--green-soft)'};color:${dead?'#fff':'var(--green)'}">${esc(dg.order_status||'')}</span>
+            <span>จ่าย <b>${fmtB(dg.buyer_paid)}</b></span>
+            <span class="muted">แอปหัก ${fmtB((+dg.platform_fee||0)+(+dg.shipping_fee||0))}</span>
+            <span>สุทธิ <b>${fmtB(dg.net_revenue)}</b></span>
+            ${profit!=null&&!dead?`<span>กำไร <b class="${profit>=0?'pos':'neg'}">${fmtB(profit)}</b></span>`:''}
+          </div>`;
+        }
         return `<tr>
           <td class="mono ship-i">${idx}</td>
           <td class="ship-order">
             <div class="ship-oid2">#${esc(first.order_id)||'<span style="color:var(--red)">ไม่มี ID</span>'}${multi}</div>
             ${sub?`<div class="sub">${esc(sub)}</div>`:''}
             <div class="ship-prods">${prodList}</div>
+            ${fin}
           </td>
           <td class="mono ship-qty">×${oQty}</td>
           <td class="mono ship-cost ${oCost>0?'pos':'zero'}">${fmtB(oCost)}</td>

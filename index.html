@@ -17,7 +17,7 @@
   // apply theme before paint to avoid flash
   (function(){try{var t=localStorage.getItem('cost-theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
 </script>
-<link rel="stylesheet" href="styles.css?v=20260623">
+<link rel="stylesheet" href="styles.css?v=20260623d">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs" type="module"></script>
 <script type="module">
@@ -66,6 +66,7 @@
     <button class="side-link" data-page="purchases" onclick="showPage('purchases',this)"><svg><use href="#i-coin"/></svg> ราคาซื้อ</button>
     <button class="side-link" data-page="products" onclick="showPage('products',this)"><svg><use href="#i-product"/></svg> สินค้า</button>
     <button class="side-link" data-page="shipments" onclick="showPage('shipments',this)"><svg><use href="#i-ship"/></svg> ส่งออก</button>
+    <button class="side-link" data-page="profit" onclick="showPage('profit',this)"><svg><use href="#i-trend"/></svg> กำไร</button>
     <button class="side-link" data-page="links" onclick="showPage('links',this)"><svg><use href="#i-box"/></svg> เชื่อมสินค้า</button>
     <div class="side-foot">
       <span>v2 · KJ</span>
@@ -157,6 +158,16 @@
       <div class="chips" id="ship-date-filter"></div>
       <div class="stat-grid" id="ship-summary"></div>
       <div id="ship-days"><div class="loading">กำลังโหลด...</div></div>
+    </section>
+
+    <!-- ===== PROFIT (กำไร) ===== -->
+    <section id="page-profit" class="page">
+      <div class="page-head">
+        <div><div class="page-title">กำไร</div><div class="page-sub">ยอดขายจริง · ค่าธรรมเนียม · ต้นทุน · กำไรสุทธิ (จาก DataGlass)</div></div>
+      </div>
+      <div class="chips" id="profit-months"></div>
+      <div class="stat-grid" id="profit-summary"></div>
+      <div id="profit-body"><div class="loading">กำลังโหลด...</div></div>
     </section>
 
     <!-- ===== LINKS (เชื่อมสินค้า) ===== -->
@@ -372,7 +383,7 @@
 <div class="toast" id="toast"><span class="tdot"></span><span id="toast-msg"></span></div>
 <div class="lightbox" id="lightbox" onclick="this.classList.remove('open')"><img id="lightbox-img" alt=""></div>
 
-<script src="js/app.js?v=20260623"></script>
-<script src="js/shipments.js?v=20260623"></script>
+<script src="js/app.js?v=20260623d"></script>
+<script src="js/shipments.js?v=20260623d"></script>
 </body>
 </html>

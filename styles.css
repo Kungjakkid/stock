@@ -591,6 +591,9 @@ details.platnames .inner{margin-top:12px}
 .ship-prod{display:flex;align-items:center;gap:7px;font-size:13px}
 .ship-prod .pn{font-weight:600;flex:1;min-width:0}
 .ship-prod .pq{font-family:var(--mono);color:var(--text-2);font-size:12px;white-space:nowrap}
+.ship-fin{margin-top:6px;display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--text-2);align-items:center}
+.ship-fin b{color:var(--text)}
+.ship-fin b.pos{color:var(--green)} .ship-fin b.neg{color:var(--red)}
 .ship-prod .ship-del1{width:24px;height:24px;flex-shrink:0}
 .ship-prod .ship-del1 svg{width:13px;height:13px}
 /* ตารางสรุปรายวันส่งออก */

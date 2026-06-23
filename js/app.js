@@ -55,7 +55,7 @@ let products = [];
 let editingProdId = null;
 let expMonthFilter = 'all';
 
-const PAGE_TITLES={dashboard:'ภาพรวม',expenses:'ค่าใช้จ่าย',materials:'วัตถุดิบ',purchases:'ราคาซื้อ',products:'สินค้า',shipments:'ส่งออก',links:'เชื่อมสินค้า'};
+const PAGE_TITLES={dashboard:'ภาพรวม',expenses:'ค่าใช้จ่าย',materials:'วัตถุดิบ',purchases:'ราคาซื้อ',products:'สินค้า',shipments:'ส่งออก',profit:'กำไร',links:'เชื่อมสินค้า'};
 const TH_MONTH_SHORT={'มกราคม':'ม.ค.','กุมภาพันธ์':'ก.พ.','มีนาคม':'มี.ค.','เมษายน':'เม.ย.','พฤษภาคม':'พ.ค.','มิถุนายน':'มิ.ย.','กรกฎาคม':'ก.ค.','สิงหาคม':'ส.ค.','กันยายน':'ก.ย.','ตุลาคม':'ต.ค.','พฤศจิกายน':'พ.ย.','ธันวาคม':'ธ.ค.'};
 const shortMonth = m => (TH_MONTH_SHORT[String(m).split(' ')[0]]||String(m).split(' ')[0]);
 
@@ -112,8 +112,9 @@ function showPage(name, btn){
   if(name==='materials') renderMaterials();
   if(name==='purchases') renderPurchases();
   if(name==='products') renderProducts();
+  if(name==='profit') renderProfit();
   if(name==='links') renderLinks();
-  if(name==='shipments'){ renderShipments(); updateUnlinkedBadge(); }
+  if(name==='shipments'){ renderShipments(); updateUnlinkedBadge(); loadDgOrders().then(()=>{ if(document.getElementById('page-shipments').classList.contains('active')) renderShipments(); }); }
 }
 
 /* ============================================================
@@ -925,6 +926,94 @@ async function linkSetProduct(platform, name, productId){
   window.renderShipments && window.renderShipments();
   showToast(`เชื่อม "${name.slice(0,18)}" → ${p.name} แล้ว`);
 }
+
+/* ===== DataGlass orders (การเงิน/สถานะ) ===== */
+let dgOrders=null, dgMap={};
+async function loadDgOrders(force){
+  if(dgOrders && !force) return dgOrders;
+  dgOrders=[]; dgMap={};
+  const cols='platform,order_id,order_status,order_date,buyer_paid,net_revenue,platform_fee,shipping_fee,dg_cogs,dg_profit,unit_count,buyer_name';
+  for(let off=0; off<40000; off+=1000){
+    const {data,error}=await db.from('dg_orders').select(cols).order('order_date',{ascending:false}).range(off,off+999);
+    if(error){ console.warn('dg_orders load',error.message); break; }
+    if(!data||!data.length) break;
+    dgOrders.push(...data);
+    if(data.length<1000) break;
+  }
+  dgOrders.forEach(o=>{ dgMap[o.platform+'|'+String(o.order_id).trim()]=o; });
+  return dgOrders;
+}
+function dgFor(platform, orderId){ return dgMap[platform+'|'+String(orderId||'').trim()]||null; }
+window.dgFor=dgFor; window.loadDgOrders=loadDgOrders;
+const DG_DEAD=new Set(['CANCELLED','RETURNED','FAILED']);   // ไม่นับเป็นยอดขาย
+const PF_LB={lazada:'Lazada',shopee:'Shopee',tiktok:'TikTok'};
+const PF_CO={lazada:'var(--plat-lazada)',shopee:'var(--plat-shopee)',tiktok:'var(--plat-tiktok)'};
+
+async function renderProfit(){
+  const body=document.getElementById('profit-body');
+  body.innerHTML='<div class="loading">กำลังโหลดข้อมูลจาก DataGlass...</div>';
+  await loadDgOrders();
+  if(!dgOrders.length){ document.getElementById('profit-summary').innerHTML=''; document.getElementById('profit-months').innerHTML=''; body.innerHTML=emptyState('i-trend','ยังไม่มีข้อมูล','sync จาก DataGlass ก่อน'); return; }
+  // group by month
+  const months={};
+  dgOrders.forEach(o=>{ const m=(o.order_date||'').slice(0,7); if(!m) return; (months[m]=months[m]||[]).push(o); });
+  const monthKeys=Object.keys(months).sort().reverse();
+  if(!window._profitMonth || !months[window._profitMonth]) window._profitMonth=monthKeys[0];
+  const sel=window._profitMonth;
+  // month chips
+  document.getElementById('profit-months').innerHTML=monthKeys.slice(0,12).map(m=>{
+    const prof=months[m].filter(o=>!DG_DEAD.has(o.order_status)).reduce((s,o)=>s+(+o.dg_profit||0),0);
+    return `<button class="chip ${m===sel?'active':''}" onclick="setProfitMonth('${m}')">${monthLabel(m)}<span class="cnt">${fmtB(prof)}฿</span></button>`;
+  }).join('');
+  const list=months[sel];
+  const live=list.filter(o=>!DG_DEAD.has(o.order_status));
+  const sum=k=>live.reduce((s,o)=>s+(+o[k]||0),0);
+  const paid=sum('buyer_paid'), net=sum('net_revenue'), fee=sum('platform_fee')+sum('shipping_fee'), cogs=sum('dg_cogs'), profit=sum('dg_profit');
+  const dead=list.length-live.length;
+  document.getElementById('profit-summary').innerHTML=`
+    <div class="stat hero"><div class="ico"><svg><use href="#i-trend"/></svg></div>
+      <div class="stat-label">กำไรสุทธิ · ${monthLabel(sel)}</div>
+      <div class="stat-value">${fmtB(profit)}<span class="stat-unit">฿</span></div>
+      <div class="stat-sub">${live.length} ออเดอร์ขายจริง${dead?` · ยกเลิก/คืน ${dead}`:''}</div></div>
+    <div class="stat"><div class="stat-label">ขายได้สุทธิ (หลังหักแอป)</div><div class="stat-value" style="font-size:20px">${fmtB(net)}</div><div class="stat-sub">ลูกค้าจ่าย ${fmtB(paid)}</div></div>
+    <div class="stat"><div class="stat-label">ค่าธรรมเนียมแอป</div><div class="stat-value" style="font-size:20px;color:var(--red)">${fmtB(fee)}</div><div class="stat-sub">ต้นทุนสินค้า ${fmtB(cogs)}</div></div>`;
+  // per platform
+  const pfRows=['shopee','lazada','tiktok'].map(p=>{
+    const g=live.filter(o=>o.platform===p);
+    if(!g.length) return '';
+    const gs=k=>g.reduce((s,o)=>s+(+o[k]||0),0);
+    return `<tr><td><span class="chiplet" style="background:${PF_CO[p]};color:#fff;font-size:10px">${PF_LB[p]}</span></td>
+      <td class="mono" style="text-align:right">${g.length}</td>
+      <td class="mono" style="text-align:right">${fmtB(gs('net_revenue'))}</td>
+      <td class="mono" style="text-align:right;color:var(--red)">${fmtB(gs('platform_fee')+gs('shipping_fee'))}</td>
+      <td class="mono pos" style="text-align:right;font-weight:700">${fmtB(gs('dg_profit'))}</td></tr>`;
+  }).join('');
+  // per day
+  const byDay={};
+  live.forEach(o=>{ (byDay[o.order_date]=byDay[o.order_date]||[]).push(o); });
+  const maxProf=Math.max(1,...Object.values(byDay).map(g=>g.reduce((s,o)=>s+(+o.dg_profit||0),0)));
+  const dayRows=Object.keys(byDay).sort().reverse().map(d=>{
+    const g=byDay[d]; const pr=g.reduce((s,o)=>s+(+o.dg_profit||0),0); const nr=g.reduce((s,o)=>s+(+o.net_revenue||0),0);
+    const w=Math.max(2,Math.round(pr/maxProf*100));
+    return `<tr><td class="mono" style="white-space:nowrap">${pDate(d)}</td>
+      <td class="mono" style="text-align:right;color:var(--text-3)">${g.length}</td>
+      <td class="mono" style="text-align:right">${fmtB(nr)}</td>
+      <td class="mono pos" style="text-align:right;font-weight:600">${fmtB(pr)}</td>
+      <td style="width:120px"><div style="background:var(--green);height:8px;border-radius:4px;width:${w}%"></div></td></tr>`;
+  }).join('');
+  body.innerHTML=`
+    ${secLabel('แยกตามแพลตฟอร์ม','')}
+    <div class="bom-table-wrap"><table class="dtable">
+      <thead><tr><th>แพลตฟอร์ม</th><th style="text-align:right">ออเดอร์</th><th style="text-align:right">ขายสุทธิ</th><th style="text-align:right">ค่าธรรมเนียม</th><th style="text-align:right">กำไร</th></tr></thead>
+      <tbody>${pfRows}</tbody></table></div>
+    ${secLabel('รายวัน','')}
+    <div class="bom-table-wrap"><table class="dtable">
+      <thead><tr><th>วันที่</th><th style="text-align:right">ออเดอร์</th><th style="text-align:right">ขายสุทธิ</th><th style="text-align:right">กำไร</th><th>กราฟ</th></tr></thead>
+      <tbody>${dayRows}</tbody></table></div>`;
+}
+function pDate(iso){ const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/); if(!m) return iso||''; const mo=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']; return `${+m[3]} ${mo[+m[2]]} ${(+m[1])+543-2500}`; }
+function setProfitMonth(m){ window._profitMonth=m; renderProfit(); }
+function monthLabel(ym){ const [y,m]=ym.split('-'); const mo=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']; return `${mo[+m]} ${(+y)+543-2500}`; }
 
 /* ============================================================
    PDF IMPORT (expenses)
