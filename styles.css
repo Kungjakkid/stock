@@ -596,6 +596,11 @@ details.platnames .inner{margin-top:12px}
 .ship-fin b.pos{color:var(--green)} .ship-fin b.neg{color:var(--red)}
 .ship-prod .ship-del1{width:24px;height:24px;flex-shrink:0}
 .ship-prod .ship-del1 svg{width:13px;height:13px}
+/* ปุ่มสลับโหมด */
+.seg-toggle{display:inline-flex;gap:0;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:3px;margin-bottom:10px}
+.seg-toggle button{border:none;background:none;padding:7px 14px;font-size:12.5px;border-radius:8px;cursor:pointer;color:var(--text-2);font-weight:600}
+.seg-toggle button.active{background:var(--accent);color:#fff}
+.ship-od-table .dg-sub td{background:var(--surface-2);padding:6px}
 /* แถบรอจัดส่ง */
 .pending-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;cursor:pointer;background:color-mix(in srgb,var(--amber,#d98a00) 14%,var(--surface));border:1px solid color-mix(in srgb,var(--amber,#d98a00) 35%,var(--border));border-radius:12px;padding:11px 14px;margin-bottom:12px;font-size:13.5px}
 .pending-bar.ok{background:var(--green-soft);border-color:var(--green-soft);color:var(--green);cursor:default}

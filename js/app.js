@@ -114,7 +114,7 @@ function showPage(name, btn){
   if(name==='products') renderProducts();
   if(name==='profit') renderProfit();
   if(name==='links') renderLinks();
-  if(name==='shipments'){ renderShipments(); updateUnlinkedBadge(); loadDgOrders().then(()=>{ if(document.getElementById('page-shipments').classList.contains('active')){ renderShipments(); renderShipPending(); } }); }
+  if(name==='shipments'){ renderShipments(); updateUnlinkedBadge(); loadDgOrders().then(()=>{ if(document.getElementById('page-shipments').classList.contains('active')){ renderShipments(); renderShipPending(); renderDgOverview(); } }); }
 }
 
 /* ============================================================
@@ -945,6 +945,69 @@ async function loadDgOrders(force){
 }
 function dgFor(platform, orderId){ return dgMap[platform+'|'+String(orderId||'').trim()]||null; }
 window.dgFor=dgFor; window.loadDgOrders=loadDgOrders;
+/* ===== ทุน/กำไรต่อออเดอร์ DataGlass (ใช้ร่วมหลายหน้า) ===== */
+let _ourShipCostMap=null;
+function buildOurCostMap(){ _ourShipCostMap={}; const s=window.getAllShipments?window.getAllShipments():[]; s.forEach(x=>{const k=x.platform+'|'+String(x.order_id).trim(); _ourShipCostMap[k]=(_ourShipCostMap[k]||0)+(+x.cost||0);}); }
+function dgItemsCost(o){ if(!o.items||!o.items.length) return null; let t=0,m=0; for(const it of o.items){ const p=window.matchProduct&&window.matchProduct(it.sku,it.name,o.platform); if(p){t+=calcProductCost(p.bom)*(+it.qty||1);m++;} } return m?t:null; }
+function dgCostOf(o){ const ic=dgItemsCost(o); if(ic!=null) return ic; if(!_ourShipCostMap) buildOurCostMap(); const k=o.platform+'|'+String(o.order_id).trim(); return (k in _ourShipCostMap)?_ourShipCostMap[k]:(+o.dg_cogs||0); }
+function dgProfitOf(o){ return (+o.net_revenue||0) - dgCostOf(o); }
+const DG_DEAD_SET=new Set(['CANCELLED','RETURNED','FAILED']);
+
+/* ===== ภาพรวมส่งออก: สลับ รายรอบ(วัน) / รายเดือน (จาก dg_orders) ===== */
+function setShipMode(m){ window._shipMode=m; renderDgOverview(); }
+function toggleDgPeriod(k){ window._dgOpenPeriod = window._dgOpenPeriod===k?null:k; renderDgOverview(); }
+function renderDgOverview(){
+  const el=document.getElementById('ship-overview'); if(!el) return;
+  if(!dgOrders||!dgOrders.length) return; // ปล่อยให้ของเดิมแสดงถ้ายังไม่มี dg
+  buildOurCostMap();
+  const mode=window._shipMode||'round';
+  const keyOf=o=> mode==='month' ? String(o.order_date||'').slice(0,7) : (o.round_date||o.order_date||'');
+  const PFL={lazada:'Lazada',shopee:'Shopee',tiktok:'TikTok'}, PFC={lazada:'var(--plat-lazada)',shopee:'var(--plat-shopee)',tiktok:'var(--plat-tiktok)'};
+  const g={}; dgOrders.forEach(o=>{ const k=keyOf(o); if(!k) return; (g[k]=g[k]||[]).push(o); });
+  const keys=Object.keys(g).sort().reverse().slice(0, mode==='month'?12:31);
+  const lbl=k=> mode==='month'?monthLabel(k):pDate(k);
+  const rows=keys.map(k=>{
+    const all=g[k], live=all.filter(o=>!DG_DEAD_SET.has(o.order_status));
+    const net=live.reduce((s,o)=>s+(+o.net_revenue||0),0);
+    const prof=live.reduce((s,o)=>s+dgProfitOf(o),0);
+    const dead=all.length-live.length;
+    const pend=all.filter(o=>String(o.order_status||'').toUpperCase()==='PROCESSING').length;
+    const open=window._dgOpenPeriod===k;
+    let sub='';
+    if(open){
+      sub=`<tr class="dg-sub"><td colspan="5"><div class="bom-table-wrap"><table class="dtable" style="min-width:520px"><tbody>${
+        all.sort((a,b)=>(a.platform).localeCompare(b.platform)).map(o=>{
+          const dead=DG_DEAD_SET.has(o.order_status); const pr=dgProfitOf(o);
+          const prod=(o.items&&o.items.length)?o.items.map(i=>esc(i.name||i.sku)).join(', '):'';
+          return `<tr>
+            <td><span class="chiplet" style="background:${PFC[o.platform]};color:#fff;font-size:10px">${PFL[o.platform]||o.platform}</span></td>
+            <td class="mono" style="font-size:11px">#${esc(o.order_id)}</td>
+            <td style="font-size:12px">${prod.slice(0,34)}</td>
+            <td style="font-size:11px;color:${dead?'var(--red)':'var(--text-3)'}">${esc(o.order_status||'')}</td>
+            <td class="mono" style="text-align:right;font-size:11px">${fmtB(o.net_revenue)}</td>
+            <td class="mono pos" style="text-align:right;font-size:11px">${dead?'-':fmtB(pr)}</td>
+          </tr>`;
+        }).join('')}</tbody></table></div></td></tr>`;
+    }
+    return `<tr class="dg-row" onclick="toggleDgPeriod('${k}')" style="cursor:pointer">
+      <td class="ship-od">${lbl(k)}${(mode==='round'&&pend)?` <span class="chiplet" style="background:var(--amber,#d98a00);color:#fff">รอส่ง ${pend}</span>`:''}</td>
+      <td class="mono" style="text-align:right;font-weight:700">${live.length}${dead?`<span style="color:var(--text-3);font-weight:400"> +${dead}</span>`:''}</td>
+      <td class="mono" style="text-align:right">${fmtB(net)}</td>
+      <td class="mono pos" style="text-align:right;font-weight:600">${fmtB(prof)}</td>
+      <td style="text-align:right;color:var(--text-3)"><svg style="width:14px;height:14px"><use href="#i-chev"/></svg></td>
+    </tr>${sub}`;
+  }).join('');
+  el.innerHTML=`
+    <div class="seg-toggle">
+      <button class="${mode==='round'?'active':''}" onclick="setShipMode('round')">🔄 รายรอบ (ตัดเที่ยง)</button>
+      <button class="${mode==='month'?'active':''}" onclick="setShipMode('month')">📅 รายเดือน</button>
+    </div>
+    <div class="bom-table-wrap"><table class="dtable ship-od-table">
+      <thead><tr><th>${mode==='month'?'เดือน':'วันรอบ'}</th><th style="text-align:right">ออเดอร์</th><th style="text-align:right">ขายสุทธิ</th><th style="text-align:right">กำไร</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+}
+window.renderDgOverview=renderDgOverview;
+
 /* แถบ "รอจัดส่ง" (ยังไม่ได้กดจัดส่ง = สถานะ PROCESSING) บนหน้าส่งออก */
 function renderShipPending(){
   const el=document.getElementById('ship-pending'); if(!el) return;
