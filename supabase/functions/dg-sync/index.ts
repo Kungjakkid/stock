@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
       const nc=d?.nextCursor; if(!nc?.canonicalOrderId || nc.canonicalOrderId===lastId) break; lastId=nc.canonicalOrderId; cur=nc;
     }
     // 2) เติม items ให้ออเดอร์ที่ยังไม่มี (จำกัดต่อรอบ กันหมดเวลา)
-    const { data: need } = await sb.from("dg_orders").select("dg_order_key").is("items",null).order("order_date",{ascending:false}).limit(120);
+    const { data: need } = await sb.from("dg_orders").select("dg_order_key").is("items",null).order("order_date",{ascending:false}).limit(50);
     let itemsFilled=0;
     for(const o of (need||[])){
       try{
