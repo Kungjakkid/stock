@@ -1040,6 +1040,18 @@ async function renderProfit(){
       <tbody>${dayRows}</tbody></table></div>`;
 }
 function pDate(iso){ const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/); if(!m) return iso||''; const mo=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']; return `${+m[3]} ${mo[+m[2]]} ${(+m[1])+543-2500}`; }
+async function syncDataGlass(){
+  const btn=document.getElementById('dg-sync-btn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ กำลัง Sync...'; }
+  try{
+    const {data,error}=await db.functions.invoke('dg-sync',{body:{days:35}});
+    if(error) throw error;
+    if(data && data.ok===false) throw new Error(data.error||'sync error');
+    await loadDgOrders(true); renderProfit();
+    showToast(`Sync แล้ว: ${data.ordersSynced||0} ออเดอร์ · เติมสินค้า ${data.itemsFilled||0}${data.itemsRemaining>0?` (เหลือ ${data.itemsRemaining} กดซ้ำได้)`:''}`);
+  }catch(e){ showToast('Sync ล้มเหลว: '+(e.message||e),'error'); }
+  finally{ if(btn){ btn.disabled=false; btn.innerHTML='<svg><use href="#i-spark"/></svg> Sync ตอนนี้'; } }
+}
 function setProfitMonth(m){ window._profitMonth=m; renderProfit(); }
 function monthLabel(ym){ const [y,m]=ym.split('-'); const mo=['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.']; return `${mo[+m]} ${(+y)+543-2500}`; }
 

@@ -17,7 +17,7 @@
   // apply theme before paint to avoid flash
   (function(){try{var t=localStorage.getItem('cost-theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
 </script>
-<link rel="stylesheet" href="styles.css?v=20260623g">
+<link rel="stylesheet" href="styles.css?v=20260623h">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs" type="module"></script>
 <script type="module">
@@ -164,6 +164,7 @@
     <section id="page-profit" class="page">
       <div class="page-head">
         <div><div class="page-title">กำไร</div><div class="page-sub">ยอดขายจริง · ค่าธรรมเนียม · ต้นทุน · กำไรสุทธิ (จาก DataGlass)</div></div>
+        <button class="btn btn-primary btn-sm" id="dg-sync-btn" onclick="syncDataGlass()"><svg><use href="#i-spark"/></svg> Sync ตอนนี้</button>
       </div>
       <div class="chips" id="profit-months"></div>
       <div class="stat-grid" id="profit-summary"></div>
@@ -383,7 +384,7 @@
 <div class="toast" id="toast"><span class="tdot"></span><span id="toast-msg"></span></div>
 <div class="lightbox" id="lightbox" onclick="this.classList.remove('open')"><img id="lightbox-img" alt=""></div>
 
-<script src="js/app.js?v=20260623g"></script>
-<script src="js/shipments.js?v=20260623g"></script>
+<script src="js/app.js?v=20260623h"></script>
+<script src="js/shipments.js?v=20260623h"></script>
 </body>
 </html>
