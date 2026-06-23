@@ -932,7 +932,7 @@ let dgOrders=null, dgMap={};
 async function loadDgOrders(force){
   if(dgOrders && !force) return dgOrders;
   dgOrders=[]; dgMap={};
-  const cols='platform,order_id,order_status,order_date,buyer_paid,net_revenue,platform_fee,shipping_fee,dg_cogs,dg_profit,unit_count,buyer_name';
+  const cols='platform,order_id,order_status,order_date,buyer_paid,net_revenue,platform_fee,shipping_fee,dg_cogs,dg_profit,unit_count,buyer_name,items';
   for(let off=0; off<40000; off+=1000){
     const {data,error}=await db.from('dg_orders').select(cols).order('order_date',{ascending:false}).range(off,off+999);
     if(error){ console.warn('dg_orders load',error.message); break; }
@@ -964,7 +964,23 @@ async function renderProfit(){
   const ships=window.getAllShipments?window.getAllShipments():[];
   const ourCostMap={};
   ships.forEach(s=>{ const k=s.platform+'|'+String(s.order_id).trim(); ourCostMap[k]=(ourCostMap[k]||0)+(+s.cost||0); });
-  const costOf=o=>{ const k=o.platform+'|'+String(o.order_id).trim(); return (k in ourCostMap)?ourCostMap[k]:(+o.dg_cogs||0); };
+  // ทุนจาก line items ของ DataGlass → match สินค้าเรา → คิด BOM
+  function itemsCost(o){
+    if(!o.items||!o.items.length) return null;
+    let total=0, matched=0;
+    for(const it of o.items){
+      const p=window.matchProduct?window.matchProduct(it.sku, it.name, o.platform):null;
+      if(p){ total+=calcProductCost(p.bom)*(+it.qty||1); matched++; }
+    }
+    return matched?total:null;   // ต้อง match ได้อย่างน้อย 1 ชิ้น
+  }
+  const costOf=o=>{
+    const ic=itemsCost(o); if(ic!=null) return ic;                 // 1) จาก items (ทุกแพลตฟอร์ม)
+    const k=o.platform+'|'+String(o.order_id).trim();
+    if(k in ourCostMap) return ourCostMap[k];                       // 2) จาก shipments เรา
+    return (+o.dg_cogs||0);                                          // 3) fallback cogs DataGlass
+  };
+  const hasOurCost=o=> itemsCost(o)!=null || ((o.platform+'|'+String(o.order_id).trim()) in ourCostMap);
   const profitOf=o=> (+o.net_revenue||0) - costOf(o);
   // month chips
   document.getElementById('profit-months').innerHTML=monthKeys.slice(0,12).map(m=>{
@@ -976,7 +992,7 @@ async function renderProfit(){
   const sum=k=>live.reduce((s,o)=>s+(+o[k]||0),0);
   const paid=sum('buyer_paid'), net=sum('net_revenue'), fee=sum('platform_fee')+sum('shipping_fee');
   const cogs=live.reduce((s,o)=>s+costOf(o),0), profit=net-cogs;
-  const ourN=live.filter(o=>(o.platform+'|'+String(o.order_id).trim()) in ourCostMap).length;
+  const ourN=live.filter(hasOurCost).length;
   const dead=list.length-live.length;
   const margin = net? (profit/net*100) : 0;
   document.getElementById('profit-summary').innerHTML=`
