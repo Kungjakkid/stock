@@ -55,7 +55,7 @@ let products = [];
 let editingProdId = null;
 let expMonthFilter = 'all';
 
-const PAGE_TITLES={dashboard:'ภาพรวม',expenses:'ค่าใช้จ่าย',materials:'วัตถุดิบ',purchases:'ราคาซื้อ',products:'สินค้า',shipments:'ส่งออก'};
+const PAGE_TITLES={dashboard:'ภาพรวม',expenses:'ค่าใช้จ่าย',materials:'วัตถุดิบ',purchases:'ราคาซื้อ',products:'สินค้า',shipments:'ส่งออก',links:'เชื่อมสินค้า'};
 const TH_MONTH_SHORT={'มกราคม':'ม.ค.','กุมภาพันธ์':'ก.พ.','มีนาคม':'มี.ค.','เมษายน':'เม.ย.','พฤษภาคม':'พ.ค.','มิถุนายน':'มิ.ย.','กรกฎาคม':'ก.ค.','สิงหาคม':'ส.ค.','กันยายน':'ก.ย.','ตุลาคม':'ต.ค.','พฤศจิกายน':'พ.ย.','ธันวาคม':'ธ.ค.'};
 const shortMonth = m => (TH_MONTH_SHORT[String(m).split(' ')[0]]||String(m).split(' ')[0]);
 
@@ -112,7 +112,8 @@ function showPage(name, btn){
   if(name==='materials') renderMaterials();
   if(name==='purchases') renderPurchases();
   if(name==='products') renderProducts();
-  if(name==='shipments') renderShipments();
+  if(name==='links') renderLinks();
+  if(name==='shipments'){ renderShipments(); updateUnlinkedBadge(); }
 }
 
 /* ============================================================
@@ -862,6 +863,68 @@ async function saveProduct(){
   showToast(editingProdId?'แก้ไขสินค้าแล้ว':'เพิ่มสินค้าแล้ว');
 }
 async function delProduct(id){ if(!confirm('ลบสินค้านี้?'))return; await db.from('products').delete().eq('id',id); await loadProducts(); renderProducts(); }
+
+/* ===== หน้า "เชื่อมสินค้า" — จับคู่ชื่อสินค้าแพลตฟอร์มที่ match ไม่ติด ===== */
+const PF_LABELS={lazada:'Lazada',shopee:'Shopee',tiktok:'TikTok'};
+const PF_COLORS={lazada:'var(--plat-lazada)',shopee:'var(--plat-shopee)',tiktok:'var(--plat-tiktok)'};
+/* คืนรายการที่ยังจับคู่ไม่ได้ (distinct platform+sku+ชื่อ) */
+function unlinkedShipItems(){
+  const ships=window.getAllShipments?window.getAllShipments():[];
+  const map=new Map();
+  ships.forEach(s=>{
+    if(window.matchProduct && window.matchProduct(s.sku, s.product_name, s.platform)) return;
+    const nm=String(s.product_name||'').trim(); if(!nm && !s.sku) return;
+    const key=s.platform+'|'+(s.sku||'')+'|'+nm;
+    if(!map.has(key)) map.set(key,{platform:s.platform, sku:s.sku||'', name:nm, count:0});
+    map.get(key).count++;
+  });
+  return [...map.values()].sort((a,b)=>b.count-a.count);
+}
+function updateUnlinkedBadge(){
+  const el=document.getElementById('ship-unlinked-badge'); if(!el) return;
+  const n=unlinkedShipItems().length;
+  el.innerHTML = n?` <span class="chiplet" style="background:var(--red);color:#fff">${n}</span>`:'';
+}
+function renderLinks(){
+  const wrap=document.getElementById('link-list');
+  const sumEl=document.getElementById('link-summary');
+  const items=unlinkedShipItems();
+  sumEl.innerHTML=`
+    <div class="stat hero"><div class="ico"><svg><use href="#i-box"/></svg></div>
+      <div class="stat-label">ยังไม่เชื่อม</div>
+      <div class="stat-value">${items.length}<span class="stat-unit">รายการ</span></div>
+      <div class="stat-sub">จับคู่แล้วจะคิดต้นทุนให้อัตโนมัติ</div></div>
+    <div class="stat"><div class="stat-label">สินค้าในระบบ</div><div class="stat-value">${products.length}</div><div class="stat-sub">รายการ</div></div>`;
+  if(!items.length){ wrap.innerHTML=emptyState('i-product','เชื่อมครบแล้ว 🎉','ทุกออเดอร์จับคู่สินค้าได้หมด คิดต้นทุนครบ'); return; }
+  const rows=items.map((it,i)=>{
+    const opts=products.map(p=>`<option value="${p.id}">${esc(p.name)}${p.sku?' ['+esc(p.sku)+']':''}</option>`).join('');
+    return `<tr>
+      <td><span class="chiplet" style="background:${PF_COLORS[it.platform]};color:#fff;font-size:10px">${PF_LABELS[it.platform]||it.platform}</span></td>
+      <td class="link-nm"><div class="nm">${esc(it.name)||'(ไม่มีชื่อ)'}</div>${it.sku?`<div class="sub">SKU: ${esc(it.sku)}</div>`:''}</td>
+      <td class="mono" style="text-align:right;color:var(--text-3)">${it.count}</td>
+      <td><select onchange="linkSetProduct('${it.platform}', this.dataset.name, this.value)" data-name="${esc(it.name).replace(/"/g,'&quot;')}"><option value="">— เลือกสินค้า —</option>${opts}</select></td>
+    </tr>`;
+  }).join('');
+  wrap.innerHTML=`<div class="bom-table-wrap"><table class="dtable">
+    <thead><tr><th>แพลตฟอร์ม</th><th>ชื่อบนแพลตฟอร์ม</th><th style="text-align:right">ออเดอร์</th><th>→ เชื่อมกับสินค้า</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+/* บันทึก: เพิ่มชื่อแพลตฟอร์มนี้เป็น alias ของสินค้า (ช่อง xxx_name คั่นด้วย |) */
+async function linkSetProduct(platform, name, productId){
+  if(!productId) return;
+  const p=products.find(x=>x.id===productId); if(!p) return;
+  const field=platform+'_name';
+  const cur=String(p[field]||'').trim();
+  const aliases=cur?cur.split('|'):[];
+  if(!aliases.some(a=>a.trim()===name.trim())) aliases.push(name);
+  const updated=aliases.join('|');
+  const {error}=await db.from('products').update({[field]:updated}).eq('id',productId);
+  if(error){ showToast('บันทึกล้มเหลว: '+error.message,'error'); return; }
+  await loadProducts();
+  renderLinks(); updateUnlinkedBadge();
+  window.renderShipments && window.renderShipments();
+  showToast(`เชื่อม "${name.slice(0,18)}" → ${p.name} แล้ว`);
+}
 
 /* ============================================================
    PDF IMPORT (expenses)

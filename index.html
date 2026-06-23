@@ -17,7 +17,7 @@
   // apply theme before paint to avoid flash
   (function(){try{var t=localStorage.getItem('cost-theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
 </script>
-<link rel="stylesheet" href="styles.css?v=20260620">
+<link rel="stylesheet" href="styles.css?v=20260620b">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs" type="module"></script>
 <script type="module">
@@ -66,6 +66,7 @@
     <button class="side-link" data-page="purchases" onclick="showPage('purchases',this)"><svg><use href="#i-coin"/></svg> ราคาซื้อ</button>
     <button class="side-link" data-page="products" onclick="showPage('products',this)"><svg><use href="#i-product"/></svg> สินค้า</button>
     <button class="side-link" data-page="shipments" onclick="showPage('shipments',this)"><svg><use href="#i-ship"/></svg> ส่งออก</button>
+    <button class="side-link" data-page="links" onclick="showPage('links',this)"><svg><use href="#i-box"/></svg> เชื่อมสินค้า</button>
     <div class="side-foot">
       <span>v2 · KJ</span>
       <button class="icon-btn theme-toggle" onclick="toggleTheme()" title="สลับธีม" style="width:34px;height:34px">
@@ -142,6 +143,7 @@
       <div class="page-head">
         <div><div class="page-title">ส่งออก</div><div class="page-sub">ออเดอร์รายวัน · ต้นทุนต่อแพลตฟอร์ม</div></div>
         <div style="display:flex;gap:8px">
+          <button class="btn btn-sm" onclick="showPage('links')"><svg><use href="#i-box"/></svg> เชื่อมสินค้า<span id="ship-unlinked-badge"></span></button>
           <button class="btn btn-sm" onclick="exportShipCSV()"><svg><use href="#i-doc"/></svg> CSV</button>
           <button class="btn btn-primary btn-sm" onclick="openShipPdfModal()"><svg><use href="#i-doc"/></svg> นำเข้า PDF</button>
         </div>
@@ -155,6 +157,15 @@
       <div class="chips" id="ship-date-filter"></div>
       <div class="stat-grid" id="ship-summary"></div>
       <div id="ship-days"><div class="loading">กำลังโหลด...</div></div>
+    </section>
+
+    <!-- ===== LINKS (เชื่อมสินค้า) ===== -->
+    <section id="page-links" class="page">
+      <div class="page-head">
+        <div><div class="page-title">เชื่อมสินค้า</div><div class="page-sub">จับคู่ชื่อสินค้าของแต่ละแพลตฟอร์มกับสินค้าในระบบ (ออเดอร์ที่ยังไม่คิดต้นทุน)</div></div>
+      </div>
+      <div class="stat-grid" id="link-summary"></div>
+      <div id="link-list"><div class="loading">กำลังโหลด...</div></div>
     </section>
   </div>
 </div>
@@ -361,7 +372,7 @@
 <div class="toast" id="toast"><span class="tdot"></span><span id="toast-msg"></span></div>
 <div class="lightbox" id="lightbox" onclick="this.classList.remove('open')"><img id="lightbox-img" alt=""></div>
 
-<script src="js/app.js?v=20260620"></script>
-<script src="js/shipments.js?v=20260620"></script>
+<script src="js/app.js?v=20260620b"></script>
+<script src="js/shipments.js?v=20260620b"></script>
 </body>
 </html>

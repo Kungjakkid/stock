@@ -394,18 +394,31 @@
      ใช้กับ Shopee ที่ใบไม่พิมพ์ SKU จึงต้อง match ด้วยชื่อตามแพลตฟอร์ม */
   function matchProduct(sku, name, platform){
     const m=matchProductBySku(sku); if(m) return m;
-    const a=normName(name).slice(0,18); if(a.length<6) return null;
+    const aFull=normName(name); if(aFull.length<4) return null;
+    const pf=(platform||'')+'_name';
+    // 1) จับคู่แบบเป๊ะจาก alias ที่ผู้ใช้เชื่อมไว้ (ชื่อแพลตฟอร์ม คั่นได้หลายชื่อด้วย |)
+    for(const p of products){
+      for(const al of String(p[pf]||'').split('|')){
+        const b=normName(al); if(b.length<4) continue;
+        if(b===aFull || b.slice(0,18)===aFull.slice(0,18)) return p;
+      }
+    }
+    // 2) จับคู่แบบใกล้เคียง (LCS) เทียบช่วงต้นชื่อ
+    const a=aFull.slice(0,18); if(a.length<6) return null;
     let best=null,bestScore=0;
     for(const p of products){
       let sc=0;
-      for(const c of [p[(platform||'')+'_name'], p.name]){
-        const b=normName(c); if(b.length<6) continue;
-        const l=lcsLen(a,b); if(l>sc) sc=l;
+      for(const c of [p[pf], p.name]){
+        for(const al of String(c||'').split('|')){
+          const b=normName(al); if(b.length<6) continue;
+          const l=lcsLen(a,b); if(l>sc) sc=l;
+        }
       }
       if(sc>bestScore){ bestScore=sc; best=p; }
     }
     return bestScore>=8 ? best : null;
   }
+  window.matchProduct = matchProduct;
   /* รายการนี้ซ้ำในฐานข้อมูลไหม — เช็ค Order ID + SKU ร่วมกัน
      (ออเดอร์เดียวกันที่มีหลายสินค้า/SKU ต่างกัน = ไม่ซ้ำ, แต่อัปไฟล์เดิมซ้ำ = ซ้ำ) */
   function isDupOrder(orderId, sku, platform){
