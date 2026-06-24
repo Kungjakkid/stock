@@ -224,7 +224,7 @@
           const dead=['CANCELLED','RETURNED','FAILED'].includes(dg.order_status);
           const profit=(dg.net_revenue!=null)?(+dg.net_revenue - oCost):null; // กำไร = ขายสุทธิ − ต้นทุนเรา
           fin=`<div class="ship-fin">
-            <span class="chiplet" style="background:${dead?'var(--red)':'var(--green-soft)'};color:${dead?'#fff':'var(--green)'}">${esc(dg.order_status||'')}</span>
+            <span class="chiplet" style="background:${dead?'var(--red)':'var(--green-soft)'};color:${dead?'#fff':'var(--green)'}">${esc(window.dgStatusTH?window.dgStatusTH(dg.order_status):dg.order_status||'')}</span>
             <span>จ่าย <b>${fmtB(dg.buyer_paid)}</b></span>
             <span class="muted">แอปหัก ${fmtB((+dg.platform_fee||0)+(+dg.shipping_fee||0))}</span>
             <span>สุทธิ <b>${fmtB(dg.net_revenue)}</b></span>

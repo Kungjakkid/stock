@@ -952,6 +952,9 @@ function dgItemsCost(o){ if(!o.items||!o.items.length) return null; let t=0,m=0;
 function dgCostOf(o){ const ic=dgItemsCost(o); if(ic!=null) return ic; if(!_ourShipCostMap) buildOurCostMap(); const k=o.platform+'|'+String(o.order_id).trim(); return (k in _ourShipCostMap)?_ourShipCostMap[k]:(+o.dg_cogs||0); }
 function dgProfitOf(o){ return (+o.net_revenue||0) - dgCostOf(o); }
 const DG_DEAD_SET=new Set(['CANCELLED','RETURNED','FAILED']);
+const DG_STATUS_TH={PROCESSING:'รอจัดส่ง',READY_TO_SHIP:'รอจัดส่ง',AWAITING_SHIPMENT:'รอจัดส่ง',AWAITING_COLLECTION:'รอเข้ารับ',SHIPPED:'จัดส่งแล้ว',IN_TRANSIT:'กำลังขนส่ง',DELIVERED:'ส่งถึงแล้ว',COMPLETED:'สำเร็จ',CANCELLED:'ยกเลิก',RETURNED:'คืนสินค้า',RETURN:'คืนสินค้า',FAILED:'ล้มเหลว',UNPAID:'ยังไม่จ่าย',PENDING:'รอดำเนินการ'};
+function dgStatusTH(s){ const k=String(s||'').toUpperCase(); return DG_STATUS_TH[k]||s||''; }
+window.dgStatusTH=dgStatusTH;
 
 /* ===== ภาพรวมส่งออก: สลับ รายรอบ(วัน) / รายเดือน (จาก dg_orders) ===== */
 function setShipMode(m){ window._shipMode=m; renderDgOverview(); }
@@ -983,7 +986,7 @@ function renderDgOverview(){
             <td><span class="chiplet" style="background:${PFC[o.platform]};color:#fff;font-size:10px">${PFL[o.platform]||o.platform}</span></td>
             <td class="mono" style="font-size:11px">#${esc(o.order_id)}</td>
             <td style="font-size:12px">${prod.slice(0,34)}</td>
-            <td style="font-size:11px;color:${dead?'var(--red)':'var(--text-3)'}">${esc(o.order_status||'')}</td>
+            <td style="font-size:11px;color:${dead?'var(--red)':'var(--text-3)'}">${esc(dgStatusTH(o.order_status))}</td>
             <td class="mono" style="text-align:right;font-size:11px">${fmtB(o.net_revenue)}</td>
             <td class="mono pos" style="text-align:right;font-size:11px">${dead?'-':fmtB(pr)}</td>
           </tr>`;
