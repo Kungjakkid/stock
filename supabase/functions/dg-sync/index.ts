@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
       const inRange=rows.filter((o:any)=>(o.createDatadate||0)>=fromInt);
       const recs=inRange.map((o:any)=>({
         dg_order_key:String(o.canonicalOrderId), platform:pf(o.platform), order_id:String(o.sourceOrderId||o.orderNumber||""),
-        order_status:o.normalizedStatus||o.orderStatus, order_date:o.createDatadate?toISO(o.createDatadate):null, round_date:roundISO(o.createDatadate,o.createDatahour),
+        order_status:o.normalizedStatus||o.orderStatus, raw_status:o.orderStatus, order_date:o.createDatadate?toISO(o.createDatadate):null, round_date:roundISO(o.createDatadate,o.createDatahour),
         buyer_paid:o.totalDiscountedPrice, net_revenue:o.totalOrderRevenue, platform_fee:o.totalOrderFee, shipping_fee:o.totalShippingFee,
         dg_cogs:o.totalOrderCogs, dg_profit:o.totalOrderProfit, unit_count:o.unitCount, buyer_name:o.buyerName, shop_name:o.sourceShopName
       })).filter((r:any)=>r.order_id);

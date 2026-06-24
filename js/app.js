@@ -960,7 +960,7 @@ let dgOrders=null, dgMap={};
 async function loadDgOrders(force){
   if(dgOrders && !force) return dgOrders;
   dgOrders=[]; dgMap={};
-  const cols='platform,order_id,order_status,order_date,buyer_paid,net_revenue,platform_fee,shipping_fee,dg_cogs,dg_profit,unit_count,buyer_name,items';
+  const cols='platform,order_id,order_status,raw_status,order_date,round_date,buyer_paid,net_revenue,platform_fee,shipping_fee,dg_cogs,dg_profit,unit_count,buyer_name,items';
   for(let off=0; off<40000; off+=1000){
     const {data,error}=await db.from('dg_orders').select(cols).order('order_date',{ascending:false}).range(off,off+999);
     if(error){ console.warn('dg_orders load',error.message); break; }
@@ -1040,36 +1040,51 @@ function renderDgOverview(){
 }
 window.renderDgOverview=renderDgOverview;
 
-/* แถบ "รอจัดส่ง" (ยังไม่ได้กดจัดส่ง = สถานะ PROCESSING) บนหน้าส่งออก */
+/* สถานะดิบ → ระยะ: 'new'(ใหม่ ยังไม่พร้อม) | 'ready'(พร้อมพิมพ์ใบปะหน้า/ส่ง) | null */
+function shipStage(o){
+  if(String(o.order_status||'').toUpperCase()!=='PROCESSING') return null;
+  const r=String(o.raw_status||'').toLowerCase();
+  if(!r) return 'ready';                                   // ยังไม่มี raw (ก่อน re-sync) → ถือว่าพร้อม (พฤติกรรมเดิม)
+  if(/ship|collection|pickup|processed/.test(r)) return 'ready';
+  if(/pending|confirm|unpaid|payment|to_pay|to_confirm|new|place|created/.test(r)) return 'new';
+  return 'ready';
+}
+/* 2 แถบบนหน้าส่งออก: ออเดอร์ใหม่ (ยังไม่พร้อม) + รอจัดส่ง (พร้อมพิมพ์) — รอบล่าสุด */
 function renderShipPending(){
   const el=document.getElementById('ship-pending'); if(!el) return;
   if(!dgOrders||!dgOrders.length){ el.innerHTML=''; return; }
-  // รอจัดส่ง = PROCESSING ในรอบล่าสุด (วันนี้+เมื่อวาน) — ของเก่ากว่านั้นส่งไปแล้ว (lazada ชอบค้างสถานะปลอม)
   const cut=new Date(Date.now()-1*86400000).toISOString().slice(0,10);
-  const pend=dgOrders.filter(o=>String(o.order_status||'').toUpperCase()==='PROCESSING' && (o.round_date||o.order_date||'')>=cut);
-  if(!pend.length){ el.innerHTML='<div class="pending-bar ok">✅ ส่งครบแล้ว — ไม่มีออเดอร์รอจัดส่ง</div>'; return; }
+  const recent=dgOrders.filter(o=>(o.round_date||o.order_date||'')>=cut);
   const PFL={lazada:'Lazada',shopee:'Shopee',tiktok:'TikTok'}, PFC={lazada:'var(--plat-lazada)',shopee:'var(--plat-shopee)',tiktok:'var(--plat-tiktok)'};
-  const byPf={}; pend.forEach(o=>{ (byPf[o.platform]=byPf[o.platform]||[]).push(o); });
-  const chips=['shopee','lazada','tiktok'].filter(p=>byPf[p]).map(p=>`<span class="chiplet" style="background:${PFC[p]};color:#fff">${PFL[p]} ${byPf[p].length}</span>`).join(' ');
-  const open=window._pendOpen?'block':'none';
-  const rows=pend.sort((a,b)=>(a.order_date||'').localeCompare(b.order_date||'')).map(o=>{
-    const prod=(o.items&&o.items.length)?o.items.map(i=>esc(i.name||i.sku)).join(', '):'';
-    return `<tr>
-      <td><span class="chiplet" style="background:${PFC[o.platform]};color:#fff;font-size:10px">${PFL[o.platform]||o.platform}</span></td>
-      <td class="mono" style="font-size:11px">#${esc(o.order_id)}</td>
-      <td style="font-size:12px">${prod.slice(0,40)}</td>
-      <td style="font-size:11px;color:var(--text-3)">${esc(o.buyer_name||'')}</td>
-      <td class="mono" style="font-size:11px;white-space:nowrap">${o.order_date?pDate(o.order_date):''}</td>
-    </tr>`;
-  }).join('');
-  el.innerHTML=`
-    <div class="pending-bar" onclick="window._pendOpen=!window._pendOpen;renderShipPending()">
-      <span>📦 <b>รอจัดส่ง ${pend.length} ออเดอร์</b> (ยังไม่กดส่ง)</span>
+  const bar=(list, key, icon, label, color)=>{
+    if(!list.length) return '';
+    const byPf={}; list.forEach(o=>{(byPf[o.platform]=byPf[o.platform]||[]).push(o);});
+    const chips=['shopee','lazada','tiktok'].filter(p=>byPf[p]).map(p=>`<span class="chiplet" style="background:${PFC[p]};color:#fff">${PFL[p]} ${byPf[p].length}</span>`).join(' ');
+    const open=window['_open_'+key];
+    const rows=list.sort((a,b)=>(a.order_date||'').localeCompare(b.order_date||'')).map(o=>{
+      const prod=(o.items&&o.items.length)?o.items.map(i=>esc(i.name||i.sku)).join(', '):'';
+      return `<tr>
+        <td><span class="chiplet" style="background:${PFC[o.platform]};color:#fff;font-size:10px">${PFL[o.platform]||o.platform}</span></td>
+        <td class="mono" style="font-size:11px">#${esc(o.order_id)}</td>
+        <td style="font-size:12px">${prod.slice(0,40)}</td>
+        <td style="font-size:11px;color:var(--text-3)">${esc(dgStatusTH(o.order_status))}</td>
+        <td class="mono" style="font-size:11px;white-space:nowrap">${o.order_date?pDate(o.order_date):''}</td>
+      </tr>`;
+    }).join('');
+    return `<div class="pending-bar" style="background:color-mix(in srgb,${color} 14%,var(--surface));border-color:color-mix(in srgb,${color} 35%,var(--border))" onclick="window['_open_${key}']=!window['_open_${key}'];renderShipPending()">
+      <span>${icon} <b>${label} ${list.length} ออเดอร์</b></span>
       <span style="margin-left:auto">${chips} <svg style="width:16px;height:16px;vertical-align:middle"><use href="#i-chev"/></svg></span>
     </div>
-    <div class="pending-list" style="display:${open}">
-      <div class="bom-table-wrap"><table class="dtable"><thead><tr><th>แพลตฟอร์ม</th><th>Order ID</th><th>สินค้า</th><th>ผู้รับ</th><th>วันที่</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="pending-list" style="display:${open?'block':'none'}">
+      <div class="bom-table-wrap"><table class="dtable"><thead><tr><th>แพลตฟอร์ม</th><th>Order ID</th><th>สินค้า</th><th>สถานะ</th><th>วันที่</th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>`;
+  };
+  const news=recent.filter(o=>shipStage(o)==='new');
+  const ready=recent.filter(o=>shipStage(o)==='ready');
+  let html=bar(news,'new','🆕','ออเดอร์ใหม่ (ยังไม่พร้อมส่ง)','var(--blue)');
+  html+=bar(ready,'ready','📦','รอจัดส่ง (พร้อมพิมพ์ใบปะหน้า)','var(--amber,#d98a00)');
+  if(!html) html='<div class="pending-bar ok">✅ ไม่มีออเดอร์ค้าง</div>';
+  el.innerHTML=html;
 }
 window.renderShipPending=renderShipPending;
 const DG_DEAD=new Set(['CANCELLED','RETURNED','FAILED']);   // ไม่นับเป็นยอดขาย

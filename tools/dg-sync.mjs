@@ -50,7 +50,7 @@ function mapRow(o){
   return {
     dg_order_key:String(o.canonicalOrderId),
     platform:(o.platform==='tiktok_shop'?'tiktok':o.platform), order_id:String(o.sourceOrderId||o.orderNumber||''),
-    order_status:o.normalizedStatus||o.orderStatus,
+    order_status:o.normalizedStatus||o.orderStatus, raw_status:o.orderStatus,
     order_date: o.createDatadate?toISO(o.createDatadate):null,
     round_date: roundISO(o.createDatadate, o.createDatahour),
     buyer_paid:o.totalDiscountedPrice, net_revenue:o.totalOrderRevenue,
