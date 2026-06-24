@@ -968,8 +968,30 @@ async function loadDgOrders(force){
     dgOrders.push(...data);
     if(data.length<1000) break;
   }
+  // override สถานะ lazada ด้วยของสดจาก Lazada API (lazada_status)
+  try{
+    const {data:lz}=await db.from('lazada_status').select('order_id,raw_status');
+    if(lz&&lz.length){
+      const lzMap={}; lz.forEach(x=>lzMap[String(x.order_id).trim()]=x.raw_status);
+      dgOrders.forEach(o=>{
+        if(o.platform!=='lazada') return;
+        const r=lzMap[String(o.order_id).trim()]; if(!r) return;
+        o.raw_status=r; o.order_status=lzNorm(r); o._live=true;
+      });
+    }
+  }catch(e){ console.warn('lazada_status',e.message); }
   dgOrders.forEach(o=>{ dgMap[o.platform+'|'+String(o.order_id).trim()]=o; });
   return dgOrders;
+}
+/* แปลงสถานะดิบ Lazada → สถานะรวม */
+function lzNorm(raw){
+  const r=String(raw||'').toLowerCase();
+  if(/cancel/.test(r)) return 'CANCELLED';
+  if(/return|shipped_back/.test(r)) return 'RETURNED';
+  if(/fail/.test(r)) return 'FAILED';
+  if(/delivered/.test(r)) return 'DELIVERED';
+  if(/shipped|transit/.test(r)) return 'SHIPPED';
+  return 'PROCESSING';   // confirmed/pending/ready_to_ship/packed/unpaid = ยังไม่ส่ง
 }
 function dgFor(platform, orderId){ return dgMap[platform+'|'+String(orderId||'').trim()]||null; }
 window.dgFor=dgFor; window.loadDgOrders=loadDgOrders;
@@ -1045,8 +1067,8 @@ function shipStage(o){
   if(String(o.order_status||'').toUpperCase()!=='PROCESSING') return null;
   const r=String(o.raw_status||'').toLowerCase();
   if(!r) return 'ready';                                   // ยังไม่มี raw (ก่อน re-sync) → ถือว่าพร้อม (พฤติกรรมเดิม)
-  if(/ship|collection|pickup|processed/.test(r)) return 'ready';
-  if(/pending|confirm|unpaid|payment|to_pay|to_confirm|new|place|created/.test(r)) return 'new';
+  if(/ship|collection|pickup|processed|confirm|packed|ready/.test(r)) return 'ready';  // พร้อมพิมพ์ใบปะหน้า
+  if(/pending|unpaid|payment|to_pay|to_confirm|new|place|created/.test(r)) return 'new'; // ใหม่ ยังไม่พร้อม
   return 'ready';
 }
 /* 2 แถบบนหน้าส่งออก: ออเดอร์ใหม่ (ยังไม่พร้อม) + รอจัดส่ง (พร้อมพิมพ์) — รอบล่าสุด */
@@ -1188,6 +1210,7 @@ async function syncDataGlass(){
   try{
     const {data,error}=await db.functions.invoke('dg-sync',{body:{days:35}});
     if(error) throw error;
+    try{ await db.functions.invoke('lazada-sync',{body:{days:10}}); }catch(e){} // สถานะ lazada สด (ไม่ throw ถ้าพลาด)
     if(data && data.ok===false) throw new Error(data.error||'sync error');
     await loadDgOrders(true); renderProfit(); if(window.renderShipPending) renderShipPending();
     showToast(`Sync แล้ว: ${data.ordersSynced||0} ออเดอร์ · เติมสินค้า ${data.itemsFilled||0}${data.itemsRemaining>0?` (เหลือ ${data.itemsRemaining} กดซ้ำได้)`:''}`);
