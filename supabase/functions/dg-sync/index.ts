@@ -39,21 +39,26 @@ Deno.serve(async (req) => {
   try{
     const days = (await req.json().catch(()=>({})))?.days ?? 35;
     const to=new Date(), from=new Date(Date.now()-days*86400000);
-    // 1) ดึงออเดอร์ช่วงล่าสุด → upsert dg_orders
+    // 1) ดึงเฉพาะออเดอร์ช่วงล่าสุด (ผลเรียงใหม่→เก่า หยุดเมื่อเกินช่วงวัน → เร็ว)
+    const fromInt=intDate(from);
     let cur:any=null, lastId=null, fetched=0;
     for(let g=0; g<200; g++){
-      const body:any={ fromDate:intDate(from), toDate:intDate(to), pageSize:200 };
+      const body:any={ pageSize:200 };
       if(cur){ body.cursorCanonicalOrderId=cur.canonicalOrderId; body.cursorCreateTime=cur.createTime; }
       const d=await dgPost("/api/canonical-order-controller/canonical/orders/fetch-paginated", body);
       const rows=d?.data||[]; if(!rows.length) break;
-      const recs=rows.map((o:any)=>({
+      const inRange=rows.filter((o:any)=>(o.createDatadate||0)>=fromInt);
+      const recs=inRange.map((o:any)=>({
         dg_order_key:String(o.canonicalOrderId), platform:pf(o.platform), order_id:String(o.sourceOrderId||o.orderNumber||""),
         order_status:o.normalizedStatus||o.orderStatus, order_date:o.createDatadate?toISO(o.createDatadate):null, round_date:roundISO(o.createDatadate,o.createDatahour),
         buyer_paid:o.totalDiscountedPrice, net_revenue:o.totalOrderRevenue, platform_fee:o.totalOrderFee, shipping_fee:o.totalShippingFee,
         dg_cogs:o.totalOrderCogs, dg_profit:o.totalOrderProfit, unit_count:o.unitCount, buyer_name:o.buyerName, shop_name:o.sourceShopName
       })).filter((r:any)=>r.order_id);
-      await sb.from("dg_orders").upsert(recs,{onConflict:"dg_order_key"});
+      if(recs.length) await sb.from("dg_orders").upsert(recs,{onConflict:"dg_order_key"});
       fetched+=recs.length;
+      // ถึงออเดอร์ที่เก่ากว่าช่วงแล้ว → หยุด
+      const oldest=rows[rows.length-1]?.createDatadate||0;
+      if(oldest<fromInt) break;
       const nc=d?.nextCursor; if(!nc?.canonicalOrderId || nc.canonicalOrderId===lastId) break; lastId=nc.canonicalOrderId; cur=nc;
     }
     // 2) เติม items ให้ออเดอร์ที่ยังไม่มี (จำกัดต่อรอบ กันหมดเวลา)
