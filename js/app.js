@@ -303,21 +303,49 @@ function renderExpenses(){
   }
   document.getElementById('exp-summary').innerHTML=sum;
 
-  let html='';
+  const view=window._expView||'bill';
+  let html=`<div class="seg-toggle" style="margin-bottom:10px">
+    <button class="${view==='bill'?'active':''}" onclick="setExpView('bill')">🧾 รายบิล</button>
+    <button class="${view==='summary'?'active':''}" onclick="setExpView('summary')">📅 สรุปรายเดือน</button>
+  </div>`;
   visibleMonths.forEach(m=>{
     const monthRows=expenses.filter(e=>e.month===m);
     const total=monthRows.reduce((s,e)=>s+(+e.total),0);
     html+=secLabel(m, fmtB(total)+' ฿');
-    // จัดกลุ่มเป็นบิล: ใช้ใบกำกับ(image_url) ร่วมกัน = บิลเดียวกัน, ไม่มีรูป = รายการเดี่ยว
-    const groups=[]; const idx={};
-    monthRows.forEach(e=>{
-      const k=e.image_url||('single:'+e.id);
-      if(idx[k]==null){ idx[k]=groups.length; groups.push([]); }
-      groups[idx[k]].push(e);
-    });
-    groups.forEach(g=>{ html+=renderBill(g); });
+    if(view==='summary'){
+      html+=renderExpSummary(monthRows, total);
+    } else {
+      const groups=[]; const idx={};
+      monthRows.forEach(e=>{
+        const k=e.image_url||('single:'+e.id);
+        if(idx[k]==null){ idx[k]=groups.length; groups.push([]); }
+        groups[idx[k]].push(e);
+      });
+      groups.forEach(g=>{ html+=renderBill(g); });
+    }
   });
   wrap.innerHTML=html;
+}
+function setExpView(v){ window._expView=v; renderExpenses(); }
+/* สรุปรายเดือน: ตารางเรียงตามวัน — ซื้ออะไร วันไหน เท่าไหร่ */
+function expDateKey(d){ const m=String(d||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if(!m) return '999999'; const z=n=>String(n).padStart(2,'0'); return `${m[3].slice(-2)}${z(+m[2])}${z(+m[1])}`; }
+function renderExpSummary(rows, total){
+  const sorted=[...rows].sort((a,b)=>expDateKey(a.date).localeCompare(expDateKey(b.date)));
+  const body=sorted.map(e=>{
+    const ppk=e.price_per_kg;
+    return `<tr>
+      <td class="mono" style="white-space:nowrap">${esc(e.date||'-')}</td>
+      <td>${esc((e.name||'').replace(/\s*\(VAT 7%\)/g,''))}</td>
+      <td class="exp-qty">${esc(e.qty||'')}</td>
+      <td class="mono" style="text-align:right;color:var(--blue)">${ppk?fmtB(ppk):''}</td>
+      <td class="mono pos" style="text-align:right;font-weight:600">${fmtB(e.total)}</td>
+    </tr>`;
+  }).join('');
+  return `<div class="bom-table-wrap"><table class="dtable exp-dtable">
+    <thead><tr><th>วันที่</th><th>รายการที่ซื้อ</th><th>จำนวน</th><th style="text-align:right">฿/kg</th><th style="text-align:right">ยอด ฿</th></tr></thead>
+    <tbody>${body}</tbody>
+    <tfoot><tr><td colspan="4" style="text-align:right;font-weight:600">รวมทั้งเดือน · ${sorted.length} รายการ</td><td class="mono" style="text-align:right;font-weight:700;color:var(--accent)">${fmtB(total)}</td></tr></tfoot>
+  </table></div>`;
 }
 
 function setExpMonth(v){ expMonthFilter=v; renderExpenses(); }
