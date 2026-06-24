@@ -964,6 +964,7 @@ function renderDgOverview(){
   if(!dgOrders||!dgOrders.length) return; // ปล่อยให้ของเดิมแสดงถ้ายังไม่มี dg
   buildOurCostMap();
   const mode=window._shipMode||'round';
+  const pendCut=new Date(Date.now()-1*86400000).toISOString().slice(0,10);  // รอบล่าสุดถึงแสดง "รอส่ง"
   const keyOf=o=> mode==='month' ? String(o.order_date||'').slice(0,7) : (o.round_date||o.order_date||'');
   const PFL={lazada:'Lazada',shopee:'Shopee',tiktok:'TikTok'}, PFC={lazada:'var(--plat-lazada)',shopee:'var(--plat-shopee)',tiktok:'var(--plat-tiktok)'};
   const g={}; dgOrders.forEach(o=>{ const k=keyOf(o); if(!k) return; (g[k]=g[k]||[]).push(o); });
@@ -993,7 +994,7 @@ function renderDgOverview(){
         }).join('')}</tbody></table></div></td></tr>`;
     }
     return `<tr class="dg-row" onclick="toggleDgPeriod('${k}')" style="cursor:pointer">
-      <td class="ship-od">${lbl(k)}${(mode==='round'&&pend)?` <span class="chiplet" style="background:var(--amber,#d98a00);color:#fff">รอส่ง ${pend}</span>`:''}</td>
+      <td class="ship-od">${lbl(k)}${(mode==='round'&&pend&&k>=pendCut)?` <span class="chiplet" style="background:var(--amber,#d98a00);color:#fff">รอส่ง ${pend}</span>`:''}</td>
       <td class="mono" style="text-align:right;font-weight:700">${live.length}${dead?`<span style="color:var(--text-3);font-weight:400"> +${dead}</span>`:''}</td>
       <td class="mono" style="text-align:right">${fmtB(net)}</td>
       <td class="mono pos" style="text-align:right;font-weight:600">${fmtB(prof)}</td>
@@ -1015,9 +1016,9 @@ window.renderDgOverview=renderDgOverview;
 function renderShipPending(){
   const el=document.getElementById('ship-pending'); if(!el) return;
   if(!dgOrders||!dgOrders.length){ el.innerHTML=''; return; }
-  // เฉพาะออเดอร์ล่าสุด 5 วัน ที่ยังไม่ส่ง (PROCESSING) — กันสถานะค้างเก่าของ lazada
-  const cut=new Date(Date.now()-5*86400000).toISOString().slice(0,10);
-  const pend=dgOrders.filter(o=>String(o.order_status||'').toUpperCase()==='PROCESSING' && (o.order_date||'')>=cut);
+  // รอจัดส่ง = PROCESSING ในรอบล่าสุด (วันนี้+เมื่อวาน) — ของเก่ากว่านั้นส่งไปแล้ว (lazada ชอบค้างสถานะปลอม)
+  const cut=new Date(Date.now()-1*86400000).toISOString().slice(0,10);
+  const pend=dgOrders.filter(o=>String(o.order_status||'').toUpperCase()==='PROCESSING' && (o.round_date||o.order_date||'')>=cut);
   if(!pend.length){ el.innerHTML='<div class="pending-bar ok">✅ ส่งครบแล้ว — ไม่มีออเดอร์รอจัดส่ง</div>'; return; }
   const PFL={lazada:'Lazada',shopee:'Shopee',tiktok:'TikTok'}, PFC={lazada:'var(--plat-lazada)',shopee:'var(--plat-shopee)',tiktok:'var(--plat-tiktok)'};
   const byPf={}; pend.forEach(o=>{ (byPf[o.platform]=byPf[o.platform]||[]).push(o); });
