@@ -980,6 +980,18 @@ async function loadDgOrders(force){
       });
     }
   }catch(e){ console.warn('lazada_status',e.message); }
+  // override สถานะ tiktok ด้วยของสดจาก TikTok Shop API (tiktok_status)
+  try{
+    const {data:tk}=await db.from('tiktok_status').select('order_id,raw_status');
+    if(tk&&tk.length){
+      const tkMap={}; tk.forEach(x=>tkMap[String(x.order_id).trim()]=x.raw_status);
+      dgOrders.forEach(o=>{
+        if(o.platform!=='tiktok') return;
+        const r=tkMap[String(o.order_id).trim()]; if(!r) return;
+        o.raw_status=r; o.order_status=ttNorm(r); o._live=true;
+      });
+    }
+  }catch(e){ console.warn('tiktok_status',e.message); }
   dgOrders.forEach(o=>{ dgMap[o.platform+'|'+String(o.order_id).trim()]=o; });
   return dgOrders;
 }
@@ -992,6 +1004,16 @@ function lzNorm(raw){
   if(/delivered/.test(r)) return 'DELIVERED';
   if(/shipped|transit/.test(r)) return 'SHIPPED';
   return 'PROCESSING';   // confirmed/pending/ready_to_ship/packed/unpaid = ยังไม่ส่ง
+}
+/* แปลงสถานะดิบ TikTok Shop → สถานะรวม */
+function ttNorm(raw){
+  const r=String(raw||'').toUpperCase();
+  if(/CANCEL/.test(r)) return 'CANCELLED';
+  if(/RETURN|REFUND/.test(r)) return 'RETURNED';
+  if(/DELIVERED/.test(r)) return 'DELIVERED';
+  if(/COMPLETED/.test(r)) return 'DELIVERED';
+  if(/IN_TRANSIT|SHIP|COLLECTION/.test(r)) return 'SHIPPED';
+  return 'PROCESSING';   // AWAITING_SHIPMENT/UNPAID/AWAITING_PAYMENT = ยังไม่ส่ง
 }
 function dgFor(platform, orderId){ return dgMap[platform+'|'+String(orderId||'').trim()]||null; }
 window.dgFor=dgFor; window.loadDgOrders=loadDgOrders;
@@ -1211,6 +1233,7 @@ async function syncDataGlass(){
     const {data,error}=await db.functions.invoke('dg-sync',{body:{days:35}});
     if(error) throw error;
     try{ await db.functions.invoke('lazada-sync',{body:{days:10}}); }catch(e){} // สถานะ lazada สด (ไม่ throw ถ้าพลาด)
+    try{ await db.functions.invoke('tiktok-sync',{body:{days:10}}); }catch(e){} // สถานะ tiktok สด
     if(data && data.ok===false) throw new Error(data.error||'sync error');
     await loadDgOrders(true); renderProfit(); if(window.renderShipPending) renderShipPending();
     showToast(`Sync แล้ว: ${data.ordersSynced||0} ออเดอร์ · เติมสินค้า ${data.itemsFilled||0}${data.itemsRemaining>0?` (เหลือ ${data.itemsRemaining} กดซ้ำได้)`:''}`);
