@@ -943,29 +943,100 @@ function updateUnlinkedBadge(){
   const n=unlinkedShipItems().length;
   el.innerHTML = n?` <span class="chiplet" style="background:var(--red);color:#fff">${n}</span>`:'';
 }
+/* normalize/คลัสเตอร์ชื่อสินค้าข้ามแอป */
+function lkNorm(s){ return String(s||'').toLowerCase().replace(/[^฀-๿a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim(); }
+function lkTokens(s){ return lkNorm(s).split(' ').filter(t=>t.length>=2); }
+function lkSim(a,b){ const A=new Set(lkTokens(a)),B=new Set(lkTokens(b)); if(!A.size||!B.size) return 0; let inter=0; A.forEach(x=>{if(B.has(x))inter++;}); return inter/new Set([...A,...B]).size; }
+/* union-find จัดกลุ่มรายการที่ชื่อ/SKU คล้ายกัน → คืน array ของกลุ่ม (แต่ละกลุ่มเป็น array ของ index) */
+function lkCluster(items){
+  const n=items.length, par=[...Array(n).keys()];
+  const find=x=>{ while(par[x]!==x){ par[x]=par[par[x]]; x=par[x]; } return x; };
+  const uni=(a,b)=>{ par[find(a)]=find(b); };
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){
+    const si=items[i], sj=items[j];
+    const sameSku=si.sku && sj.sku && si.sku.trim().toLowerCase()===sj.sku.trim().toLowerCase();
+    if(sameSku || lkSim(si.name,sj.name)>=0.5) uni(i,j);
+  }
+  const m={}; for(let i=0;i<n;i++){ const r=find(i); (m[r]=m[r]||[]).push(i); }
+  return Object.values(m).sort((a,b)=>b.length-a.length || (items[b[0]].count-items[a[0]].count));
+}
 function renderLinks(){
   const wrap=document.getElementById('link-list');
   const sumEl=document.getElementById('link-summary');
   const items=unlinkedShipItems();
+  window._linkItems=items;
+  if(!window._linkSel) window._linkSel=new Set();
+  [...window._linkSel].forEach(i=>{ if(i>=items.length) window._linkSel.delete(i); });
   sumEl.innerHTML=`
     <div class="stat hero"><div class="ico"><svg><use href="#i-box"/></svg></div>
       <div class="stat-label">ยังไม่เชื่อม</div>
       <div class="stat-value">${items.length}<span class="stat-unit">รายการ</span></div>
-      <div class="stat-sub">จับคู่แล้วจะคิดต้นทุนให้อัตโนมัติ</div></div>
+      <div class="stat-sub">จับกลุ่ม → แมพลงสินค้าจริง แล้วคิดต้นทุนอัตโนมัติ</div></div>
     <div class="stat"><div class="stat-label">สินค้าในระบบ</div><div class="stat-value">${products.length}</div><div class="stat-sub">รายการ</div></div>`;
-  if(!items.length){ wrap.innerHTML=emptyState('i-product','เชื่อมครบแล้ว 🎉','ทุกออเดอร์จับคู่สินค้าได้หมด คิดต้นทุนครบ'); return; }
-  const rows=items.map((it,i)=>{
-    const opts=products.map(p=>`<option value="${p.id}">${esc(p.name)}${p.sku?' ['+esc(p.sku)+']':''}</option>`).join('');
-    return `<tr>
-      <td><span class="chiplet" style="background:${PF_COLORS[it.platform]};color:#fff;font-size:10px">${PF_LABELS[it.platform]||it.platform}</span></td>
-      <td class="link-nm"><div class="nm">${esc(it.name)||'(ไม่มีชื่อ)'}</div>${it.sku?`<div class="sub">SKU: ${esc(it.sku)}</div>`:''}</td>
-      <td class="mono" style="text-align:right;color:var(--text-3)">${it.count}</td>
-      <td><select onchange="linkSetProduct('${it.platform}', this.dataset.name, this.value)" data-name="${esc(it.name).replace(/"/g,'&quot;')}"><option value="">— เลือกสินค้า —</option>${opts}</select></td>
-    </tr>`;
+  if(!items.length){ wrap.innerHTML=emptyState('i-product','เชื่อมครบแล้ว 🎉','ทุกออเดอร์จับคู่สินค้าได้หมด คิดต้นทุนครบ'); window._linkSel=new Set(); return; }
+  const groups=lkCluster(items); window._linkGroups=groups;
+  const pill=it=>`<span class="chiplet" style="background:${PF_COLORS[it.platform]};color:#fff;font-size:10px">${PF_LABELS[it.platform]||it.platform}</span>`;
+  const itemRow=(idx)=>{ const it=items[idx]; const sel=window._linkSel.has(idx);
+    return `<label class="link-item ${sel?'sel':''}">
+      <input type="checkbox" ${sel?'checked':''} onchange="linkToggle(${idx})">
+      ${pill(it)}
+      <span class="link-nm"><span class="nm">${esc(it.name)||'(ไม่มีชื่อ)'}</span>${it.sku?`<span class="sub">SKU: ${esc(it.sku)}</span>`:''}</span>
+      <span class="link-cnt">${it.count} ออเดอร์</span>
+    </label>`; };
+  const groupsHtml=groups.map((g,gi)=>{
+    const allSel=g.every(i=>window._linkSel.has(i));
+    const head=g.length>1?`<div class="link-grp-head"><label><input type="checkbox" ${allSel?'checked':''} onchange="linkToggleGroup(${gi})"> <b>กลุ่มที่คล้ายกัน</b> · ${g.length} ชื่อจาก ${new Set(g.map(i=>items[i].platform)).size} แอป</label></div>`:'';
+    return `<div class="link-grp ${g.length>1?'multi':''}">${head}${g.map(itemRow).join('')}</div>`;
   }).join('');
-  wrap.innerHTML=`<div class="bom-table-wrap"><table class="dtable">
-    <thead><tr><th>แพลตฟอร์ม</th><th>ชื่อบนแพลตฟอร์ม</th><th style="text-align:right">ออเดอร์</th><th>→ เชื่อมกับสินค้า</th></tr></thead>
-    <tbody>${rows}</tbody></table></div>`;
+  const selCount=window._linkSel.size;
+  const prodOpts=products.map(p=>`<option value="${p.id}">${esc(p.name)}${p.sku?' ['+esc(p.sku)+']':''}</option>`).join('');
+  const bar = selCount
+    ? `<div class="link-bar">
+         <div class="lb-count">เลือก <b>${selCount}</b> ชื่อ</div>
+         <div class="lb-row"><select id="link-target"><option value="">— เลือกสินค้าที่มีอยู่ —</option>${prodOpts}</select>
+         <button class="btn btn-sm btn-primary" onclick="linkApplyExisting()">เชื่อม</button></div>
+         <div class="lb-or">หรือ</div>
+         <div class="lb-row"><input id="link-newname" type="text" placeholder="ตั้งชื่อสินค้าใหม่"><button class="btn btn-sm" onclick="linkCreateNew()">สร้าง + เชื่อม</button></div>
+         <button class="btn btn-sm btn-ghost" onclick="linkClearSel()">ล้าง</button>
+       </div>`
+    : `<div class="link-hint">💡 ติ๊กเลือกชื่อที่เป็น<b>สินค้าตัวเดียวกัน</b> (ข้ามแอปได้) แล้วเชื่อมทีเดียว — ระบบจัดกลุ่มชื่อที่คล้ายกันให้แล้ว</div>`;
+  wrap.innerHTML=bar+groupsHtml;
+}
+function linkToggle(i){ if(window._linkSel.has(i)) window._linkSel.delete(i); else window._linkSel.add(i); renderLinks(); }
+function linkToggleGroup(gi){ const g=window._linkGroups[gi]; const all=g.every(i=>window._linkSel.has(i)); g.forEach(i=>all?window._linkSel.delete(i):window._linkSel.add(i)); renderLinks(); }
+function linkClearSel(){ window._linkSel=new Set(); renderLinks(); }
+function selectedLinkItems(){ return [...window._linkSel].map(i=>window._linkItems[i]).filter(Boolean); }
+/* รวมชื่อที่เลือก แยกตามแพลตฟอร์ม → {lazada:[...],shopee:[...],tiktok:[...]} */
+function groupSelByPlatform(){ const g={lazada:[],shopee:[],tiktok:[]}; selectedLinkItems().forEach(it=>{ (g[it.platform]=g[it.platform]||[]).push(it.name); }); return g; }
+async function linkApplyExisting(){
+  const pid=document.getElementById('link-target').value;
+  if(!pid){ alert('เลือกสินค้าที่จะเชื่อมก่อน'); return; }
+  const p=products.find(x=>x.id===pid); if(!p) return;
+  const g=groupSelByPlatform(); const upd={};
+  ['lazada','shopee','tiktok'].forEach(pf=>{
+    if(!g[pf]||!g[pf].length) return;
+    const cur=String(p[pf+'_name']||'').trim(); const al=cur?cur.split('|').map(s=>s.trim()):[];
+    g[pf].forEach(nm=>{ if(!al.some(a=>a===nm.trim())) al.push(nm); });
+    upd[pf+'_name']=al.join('|');
+  });
+  const {error}=await db.from('products').update(upd).eq('id',pid);
+  if(error){ showToast('บันทึกล้มเหลว: '+error.message,'error'); return; }
+  await loadProducts(); window._linkSel=new Set(); renderLinks(); updateUnlinkedBadge(); window.renderShipments&&window.renderShipments();
+  showToast(`เชื่อมเข้า "${p.name}" แล้ว`);
+}
+async function linkCreateNew(){
+  const sel=selectedLinkItems(); if(!sel.length) return;
+  let name=document.getElementById('link-newname').value.trim();
+  if(!name) name=sel[0].name;
+  if(!name){ alert('ตั้งชื่อสินค้าใหม่ก่อน'); return; }
+  const g=groupSelByPlatform();
+  const payload={ name, bom:[], sku:'',
+    lazada_name:(g.lazada||[]).join('|'), shopee_name:(g.shopee||[]).join('|'), tiktok_name:(g.tiktok||[]).join('|') };
+  const {data,error}=await db.from('products').insert(payload).select().single();
+  if(error){ showToast('สร้างล้มเหลว: '+error.message,'error'); return; }
+  await loadProducts(); window._linkSel=new Set(); renderLinks(); updateUnlinkedBadge(); window.renderShipments&&window.renderShipments();
+  showToast(`สร้าง "${name}" + เชื่อม ${sel.length} ชื่อแล้ว — ใส่สูตร BOM ต่อได้เลย`);
+  if(data&&data.id) openEditProd(data.id);
 }
 /* บันทึก: เพิ่มชื่อแพลตฟอร์มนี้เป็น alias ของสินค้า (ช่อง xxx_name คั่นด้วย |) */
 async function linkSetProduct(platform, name, productId){
