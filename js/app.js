@@ -739,10 +739,28 @@ async function loadProducts(){
   products=data;
 }
 
+function onProdSearch(v){ window._prodSearch=v; renderProducts(); const i=document.getElementById('prod-search'); if(i){ i.focus(); const n=i.value.length; i.setSelectionRange(n,n); } }
+function toggleProdUnlinked(){ window._prodOnlyUnlinked=!window._prodOnlyUnlinked; renderProducts(); }
 function renderProducts(){
   const list=document.getElementById('prod-list');
   if(!products.length){ list.innerHTML=emptyState('i-product','ยังไม่มีสินค้า','กด “เพิ่ม” เพื่อสร้างสูตร BOM'); return; }
-  list.innerHTML=products.map(p=>{
+  const q=(window._prodSearch||'').trim().toLowerCase();
+  const onlyUn=!!window._prodOnlyUnlinked;
+  const linkedOf=p=>!!(p.lazada_name||p.shopee_name||p.tiktok_name);
+  let items=products.slice();
+  if(q) items=items.filter(p=>((p.name||'')+' '+(p.sku||'')+' '+(p.lazada_name||'')+' '+(p.shopee_name||'')+' '+(p.tiktok_name||'')).toLowerCase().includes(q));
+  if(onlyUn) items=items.filter(p=>!linkedOf(p));
+  const linkedCount=products.filter(linkedOf).length;
+  const unlinked=products.length-linkedCount;
+  const avg=products.length?products.reduce((s,p)=>s+calcProductCost(p.bom),0)/products.length:0;
+  const toolbar=`
+    <div class="prod-toolbar">
+      <input id="prod-search" class="prod-search" type="text" placeholder="🔍 ค้นหาชื่อสินค้า / SKU / ชื่อแพลตฟอร์ม…" value="${esc(window._prodSearch||'')}" oninput="onProdSearch(this.value)" autocomplete="off">
+      <button class="btn btn-sm ${onlyUn?'btn-primary':''}" onclick="toggleProdUnlinked()">ยังไม่เชื่อม ${unlinked}</button>
+    </div>
+    <div class="prod-summary-line">${products.length} สินค้า · เชื่อมแล้ว ${linkedCount}/${products.length} · ต้นทุนเฉลี่ย ${fmtB(avg)} ฿/ชิ้น${(q||onlyUn)?` · <b>พบ ${items.length}</b>`:''}</div>`;
+  if(!items.length){ list.innerHTML=toolbar+emptyState('i-product','ไม่พบสินค้าที่ค้นหา',''); return; }
+  list.innerHTML=toolbar+items.map(p=>{
     const total=calcProductCost(p.bom);
     const bom=(p.bom||[]);
     const rows=bom.map((b,i)=>{
@@ -762,11 +780,11 @@ function renderProducts(){
       </tr>`;
     }).join('');
     const pf=`<span class="pf-letters">
-      ${p.lazada_name?`<span class="pf-letter" style="background:var(--plat-lazada)" title="${esc(p.lazada_name)}">L</span>`:''}
-      ${p.shopee_name?`<span class="pf-letter" style="background:var(--plat-shopee)" title="${esc(p.shopee_name)}">S</span>`:''}
-      ${p.tiktok_name?`<span class="pf-letter" style="background:var(--text-3)" title="${esc(p.tiktok_name)}">T</span>`:''}
+      ${p.lazada_name?`<span class="pf-letter" style="background:var(--plat-lazada)" title="Lazada: ${esc(p.lazada_name)}">L</span>`:'<span class="pf-letter off" title="ยังไม่เชื่อม Lazada">L</span>'}
+      ${p.shopee_name?`<span class="pf-letter" style="background:var(--plat-shopee)" title="Shopee: ${esc(p.shopee_name)}">S</span>`:'<span class="pf-letter off" title="ยังไม่เชื่อม Shopee">S</span>'}
+      ${p.tiktok_name?`<span class="pf-letter" style="background:var(--plat-tiktok)" title="TikTok: ${esc(p.tiktok_name)}">T</span>`:'<span class="pf-letter off" title="ยังไม่เชื่อม TikTok">T</span>'}
     </span>`;
-    return `<div class="prod" id="prod-${p.id}">
+    return `<div class="prod collapsed" id="prod-${p.id}">
       <div class="prod-head" onclick="toggleProduct('${p.id}')">
         <span class="prod-chev"><svg><use href="#i-chev"/></svg></span>
         <div class="prod-id">
