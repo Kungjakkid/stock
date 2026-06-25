@@ -107,7 +107,7 @@ function showPage(name, btn){
   document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active', b.dataset.page===name));
   document.getElementById('topbar-title').textContent=PAGE_TITLES[name]||'';
   window.scrollTo({top:0});
-  if(name==='dashboard') renderDashboard();
+  if(name==='dashboard'){ renderDashboard(); loadDgOrders().then(()=>{ if(document.getElementById('page-dashboard').classList.contains('active')) renderDashboard(); }); }
   if(name==='expenses') renderExpenses();
   if(name==='materials') renderMaterials();
   if(name==='purchases') renderPurchases();
@@ -146,61 +146,72 @@ function donutChart(segs, big, small){
 
 function renderDashboard(){
   const el=document.getElementById('dash-content');
-  const ships=(window.getAllShipments?window.getAllShipments():[])||[];
-  const months=[...new Set(expenses.map(e=>e.month))];
-  const byMonth={}; months.forEach(m=>byMonth[m]=expenses.filter(e=>e.month===m).reduce((s,e)=>s+(+e.total),0));
-  const grandExp=expenses.reduce((s,e)=>s+(+e.total),0);
-  const latestMonth=months[months.length-1];
-  const monthTotal=latestMonth?byMonth[latestMonth]:0;
+  const dg=dgOrders||[];
+  buildOurCostMap();
+  const pad=n=>String(n).padStart(2,'0');
+  const now=new Date();
+  const todayStr=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const monthStr=todayStr.slice(0,7);
+  const isLive=o=>!DG_DEAD_SET.has(o.order_status);
+  const dOf=o=>String(o.order_date||'').slice(0,10);
+  const todayL=dg.filter(o=>dOf(o)===todayStr && isLive(o));
+  const monthL=dg.filter(o=>dOf(o).slice(0,7)===monthStr && isLive(o));
+  const net=a=>a.reduce((s,o)=>s+(+o.net_revenue||0),0);
+  const prof=a=>a.reduce((s,o)=>s+dgProfitOf(o),0);
+
+  // ต้องส่ง (รอบล่าสุด)
+  const cut=new Date(Date.now()-1*86400000).toISOString().slice(0,10);
+  const recent=dg.filter(o=>(o.round_date||o.order_date||'')>=cut);
+  const news=recent.filter(o=>shipStage(o)==='new');
+  const ready=recent.filter(o=>shipStage(o)==='ready');
+  const toShip=news.length+ready.length;
 
   const plats=[
     {key:'lazada',name:'Lazada',color:'var(--plat-lazada)'},
     {key:'shopee',name:'Shopee',color:'var(--plat-shopee)'},
-    {key:'tiktok',name:'TikTok',color:'var(--text)'}
+    {key:'tiktok',name:'TikTok',color:'var(--plat-tiktok)'}
   ];
-  plats.forEach(p=>{ p.value=ships.filter(s=>s.platform===p.key).reduce((a,b)=>a+(+b.cost||0),0); p.orders=ships.filter(s=>s.platform===p.key).length; });
-  const shipCost=ships.reduce((s,x)=>s+(+x.cost||0),0);
-  const shipOrders=ships.length;
+  plats.forEach(p=>{ const a=monthL.filter(o=>o.platform===p.key); p.o=a.length; p.net=net(a); p.prof=prof(a);
+    p.ship=recent.filter(o=>o.platform===p.key && shipStage(o)).length; });
 
-  const avgCost=products.length?products.reduce((s,p)=>s+calcProductCost(p.bom),0)/products.length:0;
-
-  document.getElementById('dash-sub').textContent=latestMonth?('ล่าสุด · '+latestMonth):'สรุปต้นทุนและการส่งออก';
+  const expMonth=expenses.filter(e=>String(e.month)===monthStr).reduce((s,e)=>s+(+e.total),0);
+  document.getElementById('dash-sub').textContent='วันนี้ '+pDate(todayStr);
+  const hasDg=dg.length>0;
+  const pc=v=>(+v<0?'neg':'pos');
+  const shipChips=plats.filter(p=>p.ship).map(p=>`<span class="chiplet" style="background:${p.color};color:#fff">${p.name} ${p.ship}</span>`).join(' ')||'<span style="color:var(--text-3)">ไม่มีออเดอร์ค้างส่ง 🎉</span>';
 
   let html=`
+  <div class="stat hero" style="cursor:pointer;margin-bottom:14px" onclick="showPage('shipments')">
+    <div class="ico"><svg><use href="#i-ship"/></svg></div>
+    <div class="stat-label">ต้องจัดส่ง (รอบล่าสุด)</div>
+    <div class="stat-value">${toShip}<span class="stat-unit">ออเดอร์</span></div>
+    <div class="stat-sub">📦 พร้อมส่ง ${ready.length} · 🆕 ใหม่ ${news.length} &nbsp;&nbsp;${shipChips}</div>
+  </div>
+
+  <div class="sec-label"><span class="dot"></span><span class="t">ยอดขาย &amp; กำไร</span><span class="line"></span></div>
   <div class="stat-grid">
-    <div class="stat hero">
-      <div class="ico"><svg><use href="#i-coin"/></svg></div>
-      <div class="stat-label">ค่าใช้จ่ายรวมทั้งหมด</div>
-      <div class="stat-value">${fmtB(grandExp)}<span class="stat-unit">฿</span></div>
-      <div class="stat-sub">${expenses.length} รายการ${latestMonth?' · '+shortMonth(latestMonth)+' '+fmtB(monthTotal)+' ฿':''}</div>
-    </div>
-    <div class="stat"><div class="ico"><svg><use href="#i-material"/></svg></div><div class="stat-label">วัตถุดิบ</div><div class="stat-value">${materials.length}</div><div class="stat-sub">รายการ</div></div>
-    <div class="stat"><div class="ico"><svg><use href="#i-product"/></svg></div><div class="stat-label">สินค้า</div><div class="stat-value">${products.length}</div><div class="stat-sub">฿${fmtB(avgCost)} เฉลี่ย/ชิ้น</div></div>
+    <div class="stat"><div class="stat-label">ยอดขายวันนี้</div><div class="stat-value">${fmtB(net(todayL))}<span class="stat-unit">฿</span></div><div class="stat-sub">${todayL.length} ออเดอร์</div></div>
+    <div class="stat"><div class="stat-label">กำไรวันนี้</div><div class="stat-value ${pc(prof(todayL))}">${fmtB(prof(todayL))}<span class="stat-unit">฿</span></div><div class="stat-sub">หลังหักทุน + ค่าธรรมเนียม</div></div>
+    <div class="stat"><div class="stat-label">ยอดขายเดือนนี้</div><div class="stat-value">${fmtB(net(monthL))}<span class="stat-unit">฿</span></div><div class="stat-sub">${monthL.length} ออเดอร์ · ${monthLabel(monthStr)}</div></div>
+    <div class="stat"><div class="stat-label">กำไรเดือนนี้</div><div class="stat-value ${pc(prof(monthL))}">${fmtB(prof(monthL))}<span class="stat-unit">฿</span></div><div class="stat-sub">ค่าใช้จ่าย ${fmtB(expMonth)} ฿</div></div>
   </div>
 
-  <div class="chart-grid">
-    <div class="panel">
-      <div class="panel-head"><div class="panel-title">ค่าใช้จ่ายรายเดือน</div><div class="panel-meta">บาท</div></div>
-      ${barChart(months.map(m=>({label:shortMonth(m),value:byMonth[m]})))}
-    </div>
-    <div class="panel">
-      <div class="panel-head"><div class="panel-title">ต้นทุนส่งออกตามแพลตฟอร์ม</div></div>
-      <div class="donut-wrap">
-        ${donutChart(plats.map(p=>({label:p.name,value:p.value,color:p.color})), fmtB(shipCost).split('.')[0], shipOrders+' ออเดอร์')}
-        <div class="legend">
-          ${plats.map(p=>`<div class="legend-row"><span class="legend-dot" style="background:${p.color}"></span><span class="lname">${p.name}</span><span class="lval">${fmtB(p.value)}</span></div>`).join('')}
-        </div>
-      </div>
-    </div>
+  <div class="sec-label"><span class="dot"></span><span class="t">แยกตามแพลตฟอร์ม · ${monthLabel(monthStr)}</span><span class="line"></span></div>
+  <div class="stat-grid">
+    ${plats.map(p=>`
+      <div class="stat" style="border-top:3px solid ${p.color}">
+        <div class="stat-label" style="color:${p.color};font-weight:700">${p.name}</div>
+        <div class="stat-value">${fmtB(p.net)}<span class="stat-unit">฿</span></div>
+        <div class="stat-sub">${p.o} ออเดอร์ · กำไร <b class="${pc(p.prof)}">${fmtB(p.prof)}</b> ฿${p.ship?` · ค้างส่ง ${p.ship}`:''}</div>
+      </div>`).join('')}
   </div>
+  ${!hasDg?`<div class="empty" style="margin-top:10px"><p>กำลังโหลดข้อมูลขาย... ถ้านานเกินไปลองกด Sync ที่หน้ากำไร</p></div>`:''}
 
-  <div class="panel">
-    <div class="panel-head"><div class="panel-title">รายการล่าสุด</div><button class="btn btn-sm btn-ghost" onclick="showPage('expenses')">ดูทั้งหมด</button></div>
-    <div class="rows">${[...expenses].slice(-5).reverse().map(miniExpRow).join('')||emptyState('i-expense','ยังไม่มีรายการ','')}</div>
+  <div class="panel" style="margin-top:14px">
+    <div class="panel-head"><div class="panel-title">ค่าใช้จ่ายล่าสุด</div><button class="btn btn-sm btn-ghost" onclick="showPage('expenses')">ดูทั้งหมด</button></div>
+    <div class="rows">${[...expenses].slice(-4).reverse().map(miniExpRow).join('')||emptyState('i-expense','ยังไม่มีรายการ','')}</div>
   </div>`;
   el.innerHTML=html;
-  // animate bars
-  requestAnimationFrame(()=>el.querySelectorAll('.bar').forEach(b=>{ const h=b.style.height; b.style.height='0'; requestAnimationFrame(()=>b.style.height=h); }));
 }
 
 function miniExpRow(e){
@@ -1408,4 +1419,5 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   populateMonthSelects();
   await Promise.all([loadExpenses(),loadMaterials(),loadProducts(), window.loadShipments?window.loadShipments():Promise.resolve()]);
   renderDashboard();
+  loadDgOrders().then(()=>{ if(document.getElementById('page-dashboard').classList.contains('active')) renderDashboard(); });
 });

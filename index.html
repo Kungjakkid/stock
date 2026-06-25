@@ -17,7 +17,7 @@
   // apply theme before paint to avoid flash
   (function(){try{var t=localStorage.getItem('cost-theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
 </script>
-<link rel="stylesheet" href="styles.css?v=20260624e">
+<link rel="stylesheet" href="styles.css?v=20260625a">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs" type="module"></script>
 <script type="module">
@@ -61,12 +61,14 @@
       <div class="brand-text"><h1>ระบบต้นทุนสินค้า</h1><p>วัตถุดิบ · สูตร · ส่งออก</p></div>
     </div>
     <button class="side-link active" data-page="dashboard" onclick="showPage('dashboard',this)"><svg><use href="#i-dash"/></svg> ภาพรวม</button>
-    <button class="side-link" data-page="expenses" onclick="showPage('expenses',this)"><svg><use href="#i-expense"/></svg> ค่าใช้จ่าย</button>
-    <button class="side-link" data-page="materials" onclick="showPage('materials',this)"><svg><use href="#i-material"/></svg> วัตถุดิบ</button>
-    <button class="side-link" data-page="purchases" onclick="showPage('purchases',this)"><svg><use href="#i-coin"/></svg> ราคาซื้อ</button>
-    <button class="side-link" data-page="products" onclick="showPage('products',this)"><svg><use href="#i-product"/></svg> สินค้า</button>
+    <div class="side-group">การขาย</div>
     <button class="side-link" data-page="shipments" onclick="showPage('shipments',this)"><svg><use href="#i-ship"/></svg> ส่งออก</button>
     <button class="side-link" data-page="profit" onclick="showPage('profit',this)"><svg><use href="#i-trend"/></svg> กำไร</button>
+    <div class="side-group">ต้นทุน &amp; สินค้า</div>
+    <button class="side-link" data-page="products" onclick="showPage('products',this)"><svg><use href="#i-product"/></svg> สินค้า</button>
+    <button class="side-link" data-page="materials" onclick="showPage('materials',this)"><svg><use href="#i-material"/></svg> วัตถุดิบ</button>
+    <button class="side-link" data-page="purchases" onclick="showPage('purchases',this)"><svg><use href="#i-coin"/></svg> ราคาซื้อ</button>
+    <button class="side-link" data-page="expenses" onclick="showPage('expenses',this)"><svg><use href="#i-expense"/></svg> ค่าใช้จ่าย</button>
     <button class="side-link" data-page="links" onclick="showPage('links',this)"><svg><use href="#i-box"/></svg> เชื่อมสินค้า</button>
     <div class="side-foot">
       <span>v2 · KJ</span>
@@ -186,11 +188,10 @@
 <!-- ===== Bottom nav (mobile) ===== -->
 <nav class="botnav">
   <button class="active" data-page="dashboard" onclick="showPage('dashboard',this)"><svg><use href="#i-dash"/></svg>ภาพรวม</button>
-  <button data-page="expenses" onclick="showPage('expenses',this)"><svg><use href="#i-expense"/></svg>ค่าใช้จ่าย</button>
-  <button data-page="materials" onclick="showPage('materials',this)"><svg><use href="#i-material"/></svg>วัตถุดิบ</button>
-  <button data-page="purchases" onclick="showPage('purchases',this)"><svg><use href="#i-coin"/></svg>ราคาซื้อ</button>
-  <button data-page="products" onclick="showPage('products',this)"><svg><use href="#i-product"/></svg>สินค้า</button>
   <button data-page="shipments" onclick="showPage('shipments',this)"><svg><use href="#i-ship"/></svg>ส่งออก</button>
+  <button data-page="profit" onclick="showPage('profit',this)"><svg><use href="#i-trend"/></svg>กำไร</button>
+  <button data-page="products" onclick="showPage('products',this)"><svg><use href="#i-product"/></svg>สินค้า</button>
+  <button data-page="expenses" onclick="showPage('expenses',this)"><svg><use href="#i-expense"/></svg>ค่าใช้จ่าย</button>
 </nav>
 
 <!-- ===================== MODALS ===================== -->
@@ -385,7 +386,7 @@
 <div class="toast" id="toast"><span class="tdot"></span><span id="toast-msg"></span></div>
 <div class="lightbox" id="lightbox" onclick="this.classList.remove('open')"><img id="lightbox-img" alt=""></div>
 
-<script src="js/app.js?v=20260624e"></script>
-<script src="js/shipments.js?v=20260624e"></script>
+<script src="js/app.js?v=20260625a"></script>
+<script src="js/shipments.js?v=20260625a"></script>
 </body>
 </html>

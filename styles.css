@@ -94,7 +94,7 @@ body{
 
 .mono{font-family:var(--mono);font-feature-settings:"tnum";letter-spacing:-.01em}
 .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
-.pos{color:var(--green)}
+.pos{color:var(--green)} .neg{color:var(--red)}
 .muted{color:var(--text-2)}
 button{font-family:inherit}
 ::selection{background:var(--accent-soft);color:var(--text)}
@@ -167,6 +167,7 @@ button{font-family:inherit}
     font-size:14.5px;font-weight:500;text-align:left;width:100%;
     transition:.16s;
   }
+  .side-group{padding:14px 14px 5px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
   .side-link svg{width:20px;height:20px;flex-shrink:0;stroke-width:1.8}
   .side-link:hover{background:var(--surface-2);color:var(--text)}
   .side-link.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
