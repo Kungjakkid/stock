@@ -722,3 +722,21 @@ details.platnames .inner{margin-top:12px}
 
 /* BOM แบ่งหมวด วัตถุดิบ / บรรจุ ในการ์ดสินค้า */
 .bom-dtable tr.bom-sec td{background:var(--surface-2);border-top:1px solid var(--border);font-size:12.5px;padding-top:9px;padding-bottom:9px}
+
+/* ===== หน้าสินค้า: ปุ่มสลับมุมมอง + ตาราง Excel ===== */
+.seg-toggle.sm{display:inline-flex;flex-shrink:0}
+.seg-toggle.sm button{padding:7px 11px;font-size:12.5px}
+.prod-xl td,.prod-xl th{vertical-align:top;padding:12px 12px}
+.prod-xl th{font-size:12px;color:var(--text-3);white-space:nowrap}
+.prod-xl .tl-cell{min-width:190px}
+.prod-xl .tl-lines{display:grid;grid-template-columns:1fr auto;column-gap:12px;row-gap:5px;align-items:start;font-size:13px}
+.prod-xl .tl-lines .tl-n{line-height:1.35}
+.prod-xl .tl-lines .tl-qv{color:var(--text-2);font-family:var(--mono);font-size:12px;white-space:nowrap;text-align:right}
+.prod-xl .tl-none{color:var(--text-3)}
+.prod-xl .tl-res{min-width:150px}
+.prod-xl .tl-name{font-weight:600;font-size:14px;display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+.prod-xl .tl-sku{font-size:11px;color:var(--text-3);margin-top:3px}
+.prod-xl .tl-price{text-align:right;font-weight:700;color:var(--accent);white-space:nowrap}
+.prod-xl .tl-break{font-size:10.5px;color:var(--text-3);font-weight:400;margin-top:3px}
+.prod-xl .tl-act{white-space:nowrap;display:flex;gap:3px;justify-content:flex-end}
+.prod-xl tbody tr:hover{background:var(--surface-2)}
