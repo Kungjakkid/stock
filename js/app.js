@@ -790,22 +790,20 @@ function renderProducts(){
   list.innerHTML=toolbar+items.map(p=>{
     const total=calcProductCost(p.bom);
     const bom=(p.bom||[]);
-    let _n=0;
     const rowHtml=(b)=>{
-      _n++;
       const m=materials.find(x=>x.id===b.matId);
       const cost=calcItemCost(b);
       const usageUnit=b.unit||b.label||(m?m.unit:'')||'';
       const priceShown=(b.price!=null&&b.price!=='')?+b.price:(m?+m.price:null);
       const priceUnit=m?(m.unit||'?'):(usageUnit||'?');
       return `<tr>
-        <td class="mono" style="text-align:center;color:var(--text-3)">${_n}</td>
         <td>${m?esc(m.name):'(ลบแล้ว)'}${b.vat?' <span class="chiplet gold">VAT</span>':''}</td>
         <td class="mono" style="text-align:right">${priceShown!=null?fmtB(priceShown):'?'}</td>
-        <td style="color:var(--text-2)">฿/${esc(priceUnit)}</td>
+        <td style="color:var(--text-2);white-space:nowrap">บาท/${esc(priceUnit)}</td>
         <td class="mono" style="text-align:right">${(+b.qty).toLocaleString('th-TH')}</td>
         <td style="color:var(--text-2)">${esc(usageUnit)}</td>
         <td class="mono pos" style="text-align:right;font-weight:600">${fmtB(cost)}</td>
+        <td style="color:var(--text-3);font-size:12px">${esc(b.note||'')}</td>
       </tr>`;
     };
     const mats=bom.filter(b=>bomKind(b,materials.find(x=>x.id===b.matId))==='mat');
@@ -813,7 +811,7 @@ function renderProducts(){
     const matCost=mats.reduce((s,b)=>s+calcItemCost(b),0);
     const packCost=packs.reduce((s,b)=>s+calcItemCost(b),0);
     const section=(title,arr,sub,color)=>arr.length?`
-      <tr class="bom-sec"><td colspan="6" style="font-weight:700;color:${color}">${title} <span style="color:var(--text-3);font-weight:400">(${arr.length})</span></td><td class="mono" style="text-align:right;font-weight:600;color:${color}">${fmtB(sub)} ฿</td></tr>
+      <tr class="bom-sec"><td colspan="5" style="font-weight:700;color:${color}">${title} <span style="color:var(--text-3);font-weight:400">(${arr.length})</span></td><td class="mono" style="text-align:right;font-weight:600;color:${color}">${fmtB(sub)} ฿</td><td></td></tr>
       ${arr.map(rowHtml).join('')}`:'';
     const rows=section('🧪 วัตถุดิบ',mats,matCost,'var(--accent)')+section('📦 บรรจุ / แพ็ค',packs,packCost,'var(--blue)');
     const pf=`<span class="pf-letters">
@@ -836,10 +834,10 @@ function renderProducts(){
       </div>
       <div class="prod-body" id="body-${p.id}" style="max-height:2000px">
         <div class="bom-table-wrap">
-          ${bom.length?`<table class="dtable bom-dtable">
-            <thead><tr><th style="width:34px">#</th><th>วัตถุดิบ</th><th style="text-align:right">ราคา</th><th>หน่วย</th><th style="text-align:right">จำนวนใช้</th><th>หน่วยใช้</th><th style="text-align:right">ต้นทุน</th></tr></thead>
+          ${bom.length?`<table class="dtable bom-dtable bom-xl">
+            <thead><tr><th>วัตถุดิบ</th><th style="text-align:right">ราคาต่อหน่วย</th><th>หน่วย</th><th style="text-align:right">ปริมาณใช้ต่อออเดอร์</th><th>หน่วย</th><th style="text-align:right">ต้นทุนต่อออเดอร์ (บาท)</th><th>หมายเหตุ</th></tr></thead>
             <tbody>${rows}</tbody>
-            <tfoot><tr><td colspan="6" style="text-align:right;font-weight:600">รวมต้นทุนต่อชิ้น/ออเดอร์</td><td class="mono" style="text-align:right;font-weight:700;color:var(--accent)">${fmtB(total)} ฿</td></tr></tfoot>
+            <tfoot><tr><td colspan="5" style="text-align:right;font-weight:700">รวมต้นทุนต่อชิ้น/ออเดอร์</td><td class="mono" style="text-align:right;font-weight:700;color:var(--accent)">${fmtB(total)} ฿</td><td></td></tr></tfoot>
           </table>`:'<div class="bd" style="padding:14px 16px;color:var(--text-3)">ไม่มีวัตถุดิบ</div>'}
         </div>
       </div>
@@ -931,6 +929,7 @@ function addBOMRow(data){
     <input type="text" class="bom-unit" placeholder="หน่วยที่ใช้" value="${data?esc(data.unit||data.label||''):''}" oninput="updateBomTotal()">
     <select class="bom-kind"><option value="mat"${bomKind(data||{},m0)==='mat'?' selected':''}>🧪 วัตถุดิบ</option><option value="pack"${bomKind(data||{},m0)==='pack'?' selected':''}>📦 บรรจุ</option></select>
     <label class="vcell"><input type="checkbox" class="bom-vat" ${data&&data.vat?'checked':''} onchange="updateBomTotal()"></label>
+    <input type="text" class="bom-note" placeholder="หมายเหตุ" value="${data?esc(data.note||''):''}">
     <button class="icon-x xcell" onclick="this.closest('.bom-edit-row').remove();updateBomTotal()"><svg><use href="#i-x"/></svg></button>`;
   document.getElementById('bom-rows').appendChild(div);
   const unitInput=div.querySelector('.bom-unit');
@@ -979,8 +978,9 @@ async function saveProduct(){
     const unit=r.querySelector('.bom-unit').value.trim();
     const vat=r.querySelector('.bom-vat').checked;
     const kind=(r.querySelector('.bom-kind')||{}).value||'mat';
+    const note=(r.querySelector('.bom-note')||{}).value||'';
     if(matName && !m) unmatched++;                       // พิมพ์ชื่อแต่ไม่ตรงวัตถุดิบที่มี
-    if(m&&qty>0) bom.push({matId:m.id,price:isNaN(price)?null:price,qty,unit,vat,kind});
+    if(m&&qty>0) bom.push({matId:m.id,price:isNaN(price)?null:price,qty,unit,vat,kind,note:note.trim()});
   });
   if(unmatched){ alert(`มีวัตถุดิบ ${unmatched} แถวที่พิมพ์ชื่อไม่ตรงกับฐานข้อมูล — เลือกจากรายการที่ขึ้นมาให้ หรือไปเพิ่มวัตถุดิบก่อน`); return; }
   if(!bom.length){alert('กรุณาเพิ่มวัตถุดิบอย่างน้อย 1 รายการ');return}

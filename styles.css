@@ -528,7 +528,7 @@ details.platnames .inner{margin-top:12px}
 /* ===== BOM editor: ตารางแบบ Excel ===== */
 .bom-grid{border:1px solid var(--border-2);border-radius:11px;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:10px;background:var(--surface)}
 .bom-edit-head,.bom-edit-row{
-  display:grid;grid-template-columns:minmax(150px,1fr) 84px 70px 84px 96px 40px 36px;align-items:stretch;min-width:560px;
+  display:grid;grid-template-columns:minmax(150px,1fr) 84px 70px 84px 96px 40px 120px 36px;align-items:stretch;min-width:660px;
 }
 .bom-edit-head{background:var(--surface-3);border-bottom:1px solid var(--border-2)}
 .bom-edit-head span{font-size:11px;font-weight:600;color:var(--text-2);padding:8px 9px;border-right:1px solid var(--border);display:flex;align-items:center}
@@ -547,7 +547,7 @@ details.platnames .inner{margin-top:12px}
 .bom-grid-foot{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:var(--surface-3);border-top:1px solid var(--border-2);font-size:13px}
 .bom-grid-foot .l{font-weight:600;color:var(--text-2)}
 .bom-grid-foot .v{font-family:var(--mono);font-weight:700;font-size:16px;color:var(--accent)}
-.bom-grid-foot{min-width:560px}
+.bom-grid-foot{min-width:660px}
 .bom-addrow{margin-bottom:8px}
 
 /* scrollable data table inside import modals */
@@ -747,3 +747,7 @@ details.platnames .inner{margin-top:12px}
 .prod-xl.xl-rowspan .xl-qty{font-size:12px;color:var(--text-2);white-space:nowrap;text-align:right;min-width:58px}
 .prod-xl.xl-rowspan tr.xl-first td{border-top:2px solid var(--border-2)}
 .prod-xl.xl-rowspan .tl-res,.prod-xl.xl-rowspan .tl-price,.prod-xl.xl-rowspan .tl-act{padding-top:10px}
+
+/* card detail BOM แบบ Excel หัวสีพีช */
+.bom-xl thead th{background:var(--accent-soft);color:var(--text);font-weight:700;font-size:12px;border-bottom:1px solid var(--accent-line)}
+.bom-xl tfoot td{background:var(--surface-2)}
