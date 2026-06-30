@@ -748,6 +748,20 @@ async function loadProducts(){
 
 function onProdSearch(v){ window._prodSearch=v; renderProducts(); const i=document.getElementById('prod-search'); if(i){ i.focus(); const n=i.value.length; i.setSelectionRange(n,n); } }
 function toggleProdUnlinked(){ window._prodOnlyUnlinked=!window._prodOnlyUnlinked; renderProducts(); }
+function setProdView(v){ window._prodView=v; renderProducts(); }
+/* แถวสรุปวัตถุดิบ/บรรจุของสินค้าหนึ่ง → ใช้ในมุมมองตาราง */
+function prodLineCells(p){
+  const bom=p.bom||[];
+  const fmtLine=b=>{ const m=materials.find(x=>x.id===b.matId); const u=b.unit||b.label||(m?m.unit:'')||''; const q=(+b.qty||0).toLocaleString('th-TH'); return `${m?esc(m.name):'(ลบแล้ว)'} <span class="tl-q">${q}${u?' '+esc(u):''}</span>`; };
+  const mats=bom.filter(b=>bomKind(b,materials.find(x=>x.id===b.matId))==='mat');
+  const packs=bom.filter(b=>bomKind(b,materials.find(x=>x.id===b.matId))==='pack');
+  return {
+    mat: mats.map(fmtLine).join('<br>')||'<span class="tl-none">–</span>',
+    pack: packs.map(fmtLine).join('<br>')||'<span class="tl-none">–</span>',
+    matCost: mats.reduce((s,b)=>s+calcItemCost(b),0),
+    packCost: packs.reduce((s,b)=>s+calcItemCost(b),0)
+  };
+}
 function renderProducts(){
   const list=document.getElementById('prod-list');
   if(!products.length){ list.innerHTML=emptyState('i-product','ยังไม่มีสินค้า','กด “เพิ่ม” เพื่อสร้างสูตร BOM'); return; }
@@ -760,13 +774,16 @@ function renderProducts(){
   const linkedCount=products.filter(linkedOf).length;
   const unlinked=products.length-linkedCount;
   const avg=products.length?products.reduce((s,p)=>s+calcProductCost(p.bom),0)/products.length:0;
+  const view=window._prodView||'table';
   const toolbar=`
     <div class="prod-toolbar">
       <input id="prod-search" class="prod-search" type="text" placeholder="🔍 ค้นหาชื่อสินค้า / SKU / ชื่อแพลตฟอร์ม…" value="${esc(window._prodSearch||'')}" oninput="onProdSearch(this.value)" autocomplete="off">
+      <div class="seg-toggle sm"><button class="${view==='table'?'active':''}" onclick="setProdView('table')">📋 ตาราง</button><button class="${view==='card'?'active':''}" onclick="setProdView('card')">🗂 การ์ด</button></div>
       <button class="btn btn-sm ${onlyUn?'btn-primary':''}" onclick="toggleProdUnlinked()">ยังไม่เชื่อม ${unlinked}</button>
     </div>
     <div class="prod-summary-line">${products.length} สินค้า · เชื่อมแล้ว ${linkedCount}/${products.length} · ต้นทุนเฉลี่ย ${fmtB(avg)} ฿/ชิ้น${(q||onlyUn)?` · <b>พบ ${items.length}</b>`:''}</div>`;
   if(!items.length){ list.innerHTML=toolbar+emptyState('i-product','ไม่พบสินค้าที่ค้นหา',''); return; }
+  if(view==='table'){ list.innerHTML=toolbar+renderProdTable(items); return; }
   list.innerHTML=toolbar+items.map(p=>{
     const total=calcProductCost(p.bom);
     const bom=(p.bom||[]);
@@ -827,6 +844,30 @@ function renderProducts(){
   }).join('');
 }
 
+/* มุมมองตาราง Excel: วัตถุดิบ | บรรจุ | ที่ได้ (สินค้า) | ราคา */
+function renderProdTable(items){
+  const pfLetters=p=>`<span class="pf-letters">
+    ${p.lazada_name?`<span class="pf-letter" style="background:var(--plat-lazada)" title="Lazada: ${esc(p.lazada_name)}">L</span>`:'<span class="pf-letter off">L</span>'}
+    ${p.shopee_name?`<span class="pf-letter" style="background:var(--plat-shopee)" title="Shopee: ${esc(p.shopee_name)}">S</span>`:'<span class="pf-letter off">S</span>'}
+    ${p.tiktok_name?`<span class="pf-letter" style="background:var(--plat-tiktok)" title="TikTok: ${esc(p.tiktok_name)}">T</span>`:'<span class="pf-letter off">T</span>'}
+  </span>`;
+  const rows=items.map(p=>{
+    const c=prodLineCells(p); const total=calcProductCost(p.bom);
+    return `<tr>
+      <td class="tl-mat">${c.mat}</td>
+      <td class="tl-pack">${c.pack}</td>
+      <td class="tl-res"><div class="tl-name">${esc(p.name)} ${pfLetters(p)}</div>${p.sku?`<div class="tl-sku">SKU ${esc(p.sku)}</div>`:''}</td>
+      <td class="mono tl-price">${fmtB(total)} ฿<div class="tl-break">🧪${fmtB(c.matCost)} · 📦${fmtB(c.packCost)}</div></td>
+      <td class="tl-act">
+        <button class="icon-btn" style="width:30px;height:30px" onclick="openEditProd('${p.id}')" title="แก้ไข"><svg style="width:15px;height:15px"><use href="#i-edit"/></svg></button>
+        <button class="icon-x" onclick="delProduct('${p.id}')"><svg><use href="#i-x"/></svg></button>
+      </td>
+    </tr>`;
+  }).join('');
+  return `<div class="bom-table-wrap"><table class="dtable prod-xl">
+    <thead><tr><th>🧪 วัตถุดิบ</th><th>📦 บรรจุ</th><th>ที่ได้ (สินค้า)</th><th style="text-align:right">ราคา/ชิ้น</th><th></th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
 function toggleProduct(id){ document.getElementById('prod-'+id).classList.toggle('collapsed'); }
 
 function openProdModal(){
