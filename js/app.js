@@ -854,21 +854,35 @@ function renderProdTable(items){
     ${p.shopee_name?`<span class="pf-letter" style="background:var(--plat-shopee)" title="Shopee: ${esc(p.shopee_name)}">S</span>`:'<span class="pf-letter off">S</span>'}
     ${p.tiktok_name?`<span class="pf-letter" style="background:var(--plat-tiktok)" title="TikTok: ${esc(p.tiktok_name)}">T</span>`:'<span class="pf-letter off">T</span>'}
   </span>`;
+  const nm=b=>{ const m=materials.find(x=>x.id===b.matId); return m?esc(m.name):'(ลบแล้ว)'; };
+  const qv=b=>{ const m=materials.find(x=>x.id===b.matId); const u=b.unit||b.label||(m?m.unit:'')||''; return `${(+b.qty||0).toLocaleString('th-TH')}${u?' '+esc(u):''}`; };
   const rows=items.map(p=>{
-    const c=prodLineCells(p); const total=calcProductCost(p.bom);
-    return `<tr>
-      <td class="tl-cell">${c.matHtml}</td>
-      <td class="tl-cell">${c.packHtml}</td>
-      <td class="tl-res"><div class="tl-name">${esc(p.name)} ${pfLetters(p)}</div>${p.sku?`<div class="tl-sku">SKU ${esc(p.sku)}</div>`:''}</td>
-      <td class="mono tl-price">${fmtB(total)} ฿<div class="tl-break">🧪${fmtB(c.matCost)} · 📦${fmtB(c.packCost)}</div></td>
-      <td class="tl-act">
-        <button class="icon-btn" style="width:30px;height:30px" onclick="openEditProd('${p.id}')" title="แก้ไข"><svg style="width:15px;height:15px"><use href="#i-edit"/></svg></button>
-        <button class="icon-x" onclick="delProduct('${p.id}')"><svg><use href="#i-x"/></svg></button>
-      </td>
-    </tr>`;
+    const bom=p.bom||[];
+    const mats=bom.filter(b=>bomKind(b,materials.find(x=>x.id===b.matId))==='mat');
+    const packs=bom.filter(b=>bomKind(b,materials.find(x=>x.id===b.matId))==='pack');
+    const matCost=mats.reduce((s,b)=>s+calcItemCost(b),0), packCost=packs.reduce((s,b)=>s+calcItemCost(b),0);
+    const total=calcProductCost(p.bom);
+    const n=Math.max(mats.length,packs.length,1);
+    let tr='';
+    for(let i=0;i<n;i++){
+      const mb=mats[i], pb=packs[i];
+      tr+=`<tr class="${i===0?'xl-first':''}">
+        <td class="xl-name">${mb?nm(mb):''}</td>
+        <td class="xl-qty mono">${mb?qv(mb):''}</td>
+        <td class="xl-name">${pb?nm(pb):(i===0&&!packs.length?'<span class=\"tl-none\">–</span>':'')}</td>
+        <td class="xl-qty mono">${pb?qv(pb):''}</td>
+        ${i===0?`<td rowspan="${n}" class="tl-res"><div class="tl-name">${esc(p.name)} ${pfLetters(p)}</div>${p.sku?`<div class="tl-sku">SKU ${esc(p.sku)}</div>`:''}</td>
+          <td rowspan="${n}" class="mono tl-price">${fmtB(total)} ฿<div class="tl-break">🧪${fmtB(matCost)} · 📦${fmtB(packCost)}</div></td>
+          <td rowspan="${n}" class="tl-act">
+            <button class="icon-btn" style="width:30px;height:30px" onclick="openEditProd('${p.id}')" title="แก้ไข"><svg style="width:15px;height:15px"><use href="#i-edit"/></svg></button>
+            <button class="icon-x" onclick="delProduct('${p.id}')"><svg><use href="#i-x"/></svg></button>
+          </td>`:''}
+      </tr>`;
+    }
+    return tr;
   }).join('');
-  return `<div class="bom-table-wrap"><table class="dtable prod-xl">
-    <thead><tr><th>🧪 วัตถุดิบ · จำนวน</th><th>📦 บรรจุ · จำนวน</th><th>ที่ได้ (สินค้า)</th><th style="text-align:right">ราคา/ชิ้น</th><th></th></tr></thead>
+  return `<div class="bom-table-wrap"><table class="dtable prod-xl xl-rowspan">
+    <thead><tr><th>🧪 วัตถุดิบ</th><th>จำนวน</th><th>📦 บรรจุ</th><th>จำนวน</th><th>ที่ได้ (สินค้า)</th><th style="text-align:right">ราคา/ชิ้น</th><th></th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }
 function toggleProduct(id){ document.getElementById('prod-'+id).classList.toggle('collapsed'); }

@@ -740,3 +740,10 @@ details.platnames .inner{margin-top:12px}
 .prod-xl .tl-break{font-size:10.5px;color:var(--text-3);font-weight:400;margin-top:3px}
 .prod-xl .tl-act{white-space:nowrap;display:flex;gap:3px;justify-content:flex-end}
 .prod-xl tbody tr:hover{background:var(--surface-2)}
+
+/* ตารางสินค้าแบบ rowspan: แต่ละบรรทัดวัตถุดิบ↔บรรจุตรงกัน */
+.prod-xl.xl-rowspan td{padding:7px 12px;vertical-align:top}
+.prod-xl.xl-rowspan .xl-name{font-size:13px;line-height:1.4;min-width:150px}
+.prod-xl.xl-rowspan .xl-qty{font-size:12px;color:var(--text-2);white-space:nowrap;text-align:right;min-width:58px}
+.prod-xl.xl-rowspan tr.xl-first td{border-top:2px solid var(--border-2)}
+.prod-xl.xl-rowspan .tl-res,.prod-xl.xl-rowspan .tl-price,.prod-xl.xl-rowspan .tl-act{padding-top:10px}
