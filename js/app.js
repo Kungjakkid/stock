@@ -752,12 +752,17 @@ function setProdView(v){ window._prodView=v; renderProducts(); }
 /* แถวสรุปวัตถุดิบ/บรรจุของสินค้าหนึ่ง → ใช้ในมุมมองตาราง */
 function prodLineCells(p){
   const bom=p.bom||[];
-  const fmtLine=b=>{ const m=materials.find(x=>x.id===b.matId); const u=b.unit||b.label||(m?m.unit:'')||''; const q=(+b.qty||0).toLocaleString('th-TH'); return `${m?esc(m.name):'(ลบแล้ว)'} <span class="tl-q">${q}${u?' '+esc(u):''}</span>`; };
+  const nameOf=b=>{ const m=materials.find(x=>x.id===b.matId); return m?esc(m.name):'(ลบแล้ว)'; };
+  const qtyOf=b=>{ const m=materials.find(x=>x.id===b.matId); const u=b.unit||b.label||(m?m.unit:'')||''; const q=(+b.qty||0).toLocaleString('th-TH'); return `${q}${u?' '+esc(u):''}`; };
   const mats=bom.filter(b=>bomKind(b,materials.find(x=>x.id===b.matId))==='mat');
   const packs=bom.filter(b=>bomKind(b,materials.find(x=>x.id===b.matId))==='pack');
+  const none='<span class="tl-none">–</span>';
+  const join=arr=>arr.length?arr.join('<br>'):none;
   return {
-    mat: mats.map(fmtLine).join('<br>')||'<span class="tl-none">–</span>',
-    pack: packs.map(fmtLine).join('<br>')||'<span class="tl-none">–</span>',
+    matName: join(mats.map(nameOf)),
+    matQty: join(mats.map(qtyOf)),
+    packName: join(packs.map(nameOf)),
+    packQty: join(packs.map(qtyOf)),
     matCost: mats.reduce((s,b)=>s+calcItemCost(b),0),
     packCost: packs.reduce((s,b)=>s+calcItemCost(b),0)
   };
@@ -854,8 +859,10 @@ function renderProdTable(items){
   const rows=items.map(p=>{
     const c=prodLineCells(p); const total=calcProductCost(p.bom);
     return `<tr>
-      <td class="tl-mat">${c.mat}</td>
-      <td class="tl-pack">${c.pack}</td>
+      <td class="tl-mat">${c.matName}</td>
+      <td class="tl-qty mono">${c.matQty}</td>
+      <td class="tl-pack">${c.packName}</td>
+      <td class="tl-qty mono">${c.packQty}</td>
       <td class="tl-res"><div class="tl-name">${esc(p.name)} ${pfLetters(p)}</div>${p.sku?`<div class="tl-sku">SKU ${esc(p.sku)}</div>`:''}</td>
       <td class="mono tl-price">${fmtB(total)} ฿<div class="tl-break">🧪${fmtB(c.matCost)} · 📦${fmtB(c.packCost)}</div></td>
       <td class="tl-act">
@@ -865,7 +872,7 @@ function renderProdTable(items){
     </tr>`;
   }).join('');
   return `<div class="bom-table-wrap"><table class="dtable prod-xl">
-    <thead><tr><th>🧪 วัตถุดิบ</th><th>📦 บรรจุ</th><th>ที่ได้ (สินค้า)</th><th style="text-align:right">ราคา/ชิ้น</th><th></th></tr></thead>
+    <thead><tr><th>🧪 วัตถุดิบ</th><th>จำนวน</th><th>📦 บรรจุ</th><th>จำนวน</th><th>ที่ได้ (สินค้า)</th><th style="text-align:right">ราคา/ชิ้น</th><th></th></tr></thead>
     <tbody>${rows}</tbody></table></div>`;
 }
 function toggleProduct(id){ document.getElementById('prod-'+id).classList.toggle('collapsed'); }
