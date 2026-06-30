@@ -526,7 +526,7 @@ details.platnames .inner{margin-top:12px}
 
 /* BOM editor rows in modal */
 .bom-edit-head,.bom-edit-row{
-  display:grid;grid-template-columns:1fr 84px 72px 96px 40px 32px;gap:7px;align-items:center;
+  display:grid;grid-template-columns:1fr 84px 72px 88px 84px 40px 32px;gap:7px;align-items:center;
 }
 .bom-edit-head{margin-bottom:6px}
 .bom-edit-head span{font-size:11px;color:var(--text-3);padding:0 2px}
@@ -712,3 +712,6 @@ details.platnames .inner{margin-top:12px}
 .link-item .link-nm .nm{font-size:14px;font-weight:500;color:var(--text)}
 .link-item .link-nm .sub{font-size:11px;color:var(--text-3)}
 .link-item .link-cnt{font-size:12px;color:var(--text-3);white-space:nowrap;flex-shrink:0}
+
+/* BOM แบ่งหมวด วัตถุดิบ / บรรจุ ในการ์ดสินค้า */
+.bom-dtable tr.bom-sec td{background:var(--surface-2);border-top:1px solid var(--border);font-size:12.5px;padding-top:9px;padding-bottom:9px}

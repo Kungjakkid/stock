@@ -732,6 +732,13 @@ function calcItemCost(b){
   return b.vat?base*1.07:base;
 }
 function calcProductCost(bom){ return (bom||[]).reduce((s,b)=>s+calcItemCost(b),0); }
+/* แยกชนิดบรรทัด BOM: 'pack'=บรรจุ/แพ็ค, 'mat'=วัตถุดิบ (เดาจากชื่อถ้ายังไม่ระบุ) */
+function bomKind(b,m){
+  if(b&&b.kind) return b.kind;
+  const nm=((m&&m.name)||(b&&(b.label||b.unit))||'').toLowerCase();
+  if(/แกลอน|ขวด|ถุง|ซิป|ซิบ|กล่อง|ฝา|จุก|สติ๊กเกอร์|สติกเกอร์|ฉลาก|ป้าย|บับเบิล|กันกระแทก|เทป|ลัง|ซอง|หลอด|ปั๊ม|สเปรย์|พลาสติก/.test(nm)) return 'pack';
+  return 'mat';
+}
 
 async function loadProducts(){
   const {data,error}=await db.from('products').select('*').order('created_at');
@@ -763,14 +770,16 @@ function renderProducts(){
   list.innerHTML=toolbar+items.map(p=>{
     const total=calcProductCost(p.bom);
     const bom=(p.bom||[]);
-    const rows=bom.map((b,i)=>{
+    let _n=0;
+    const rowHtml=(b)=>{
+      _n++;
       const m=materials.find(x=>x.id===b.matId);
       const cost=calcItemCost(b);
       const usageUnit=b.unit||b.label||(m?m.unit:'')||'';
       const priceShown=(b.price!=null&&b.price!=='')?+b.price:(m?+m.price:null);
       const priceUnit=m?(m.unit||'?'):(usageUnit||'?');
       return `<tr>
-        <td class="mono" style="text-align:center;color:var(--text-3)">${i+1}</td>
+        <td class="mono" style="text-align:center;color:var(--text-3)">${_n}</td>
         <td>${m?esc(m.name):'(ลบแล้ว)'}${b.vat?' <span class="chiplet gold">VAT</span>':''}</td>
         <td class="mono" style="text-align:right">${priceShown!=null?fmtB(priceShown):'?'}</td>
         <td style="color:var(--text-2)">฿/${esc(priceUnit)}</td>
@@ -778,7 +787,15 @@ function renderProducts(){
         <td style="color:var(--text-2)">${esc(usageUnit)}</td>
         <td class="mono pos" style="text-align:right;font-weight:600">${fmtB(cost)}</td>
       </tr>`;
-    }).join('');
+    };
+    const mats=bom.filter(b=>bomKind(b,materials.find(x=>x.id===b.matId))==='mat');
+    const packs=bom.filter(b=>bomKind(b,materials.find(x=>x.id===b.matId))==='pack');
+    const matCost=mats.reduce((s,b)=>s+calcItemCost(b),0);
+    const packCost=packs.reduce((s,b)=>s+calcItemCost(b),0);
+    const section=(title,arr,sub,color)=>arr.length?`
+      <tr class="bom-sec"><td colspan="6" style="font-weight:700;color:${color}">${title} <span style="color:var(--text-3);font-weight:400">(${arr.length})</span></td><td class="mono" style="text-align:right;font-weight:600;color:${color}">${fmtB(sub)} ฿</td></tr>
+      ${arr.map(rowHtml).join('')}`:'';
+    const rows=section('🧪 วัตถุดิบ',mats,matCost,'var(--accent)')+section('📦 บรรจุ / แพ็ค',packs,packCost,'var(--blue)');
     const pf=`<span class="pf-letters">
       ${p.lazada_name?`<span class="pf-letter" style="background:var(--plat-lazada)" title="Lazada: ${esc(p.lazada_name)}">L</span>`:'<span class="pf-letter off" title="ยังไม่เชื่อม Lazada">L</span>'}
       ${p.shopee_name?`<span class="pf-letter" style="background:var(--plat-shopee)" title="Shopee: ${esc(p.shopee_name)}">S</span>`:'<span class="pf-letter off" title="ยังไม่เชื่อม Shopee">S</span>'}
@@ -789,7 +806,7 @@ function renderProducts(){
         <span class="prod-chev"><svg><use href="#i-chev"/></svg></span>
         <div class="prod-id">
           <div class="prod-name">${p.name} ${pf}</div>
-          <div class="prod-sub">${p.sku?`<span class="chiplet sku">${esc(p.sku)}</span>`:''}<span>${bom.length} วัตถุดิบ</span></div>
+          <div class="prod-sub">${p.sku?`<span class="chiplet sku">${esc(p.sku)}</span>`:''}<span>🧪 วัตถุดิบ ${fmtB(matCost)} ฿</span><span>📦 บรรจุ ${fmtB(packCost)} ฿</span></div>
         </div>
         <div class="prod-cost"><div class="c">${fmtB(total)} ฿</div><div class="cl">ต้นทุน/ชิ้น</div></div>
         <div class="prod-actions" onclick="event.stopPropagation()">
@@ -854,6 +871,7 @@ function addBOMRow(data){
     <input type="number" class="bom-price num" placeholder="ราคา" step="0.01" value="${priceVal}" style="text-align:right" oninput="updateBomTotal()">
     <input type="number" class="bom-qty num" placeholder="จำนวน" step="0.001" value="${data?data.qty:''}" style="text-align:right" oninput="updateBomTotal()">
     <input type="text" class="bom-unit" placeholder="หน่วยที่ใช้" value="${data?esc(data.unit||data.label||''):''}" oninput="updateBomTotal()">
+    <select class="bom-kind"><option value="mat"${bomKind(data||{},m0)==='mat'?' selected':''}>🧪 วัตถุดิบ</option><option value="pack"${bomKind(data||{},m0)==='pack'?' selected':''}>📦 บรรจุ</option></select>
     <label class="vcell"><input type="checkbox" class="bom-vat" ${data&&data.vat?'checked':''} onchange="updateBomTotal()"></label>
     <button class="icon-x xcell" onclick="this.closest('.bom-edit-row').remove();updateBomTotal()"><svg><use href="#i-x"/></svg></button>`;
   document.getElementById('bom-rows').appendChild(div);
@@ -868,6 +886,7 @@ function onBomMatChange(el){
   if(m){
     row.querySelector('.bom-unit').placeholder='เช่น '+(m.unit||'หน่วย');
     row.querySelector('.bom-price').value=+m.price||0;
+    const ks=row.querySelector('.bom-kind'); if(ks) ks.value=bomKind({},m);
   }
   updateBomTotal();
 }
@@ -901,8 +920,9 @@ async function saveProduct(){
     const qty=parseFloat(r.querySelector('.bom-qty').value)||0;
     const unit=r.querySelector('.bom-unit').value.trim();
     const vat=r.querySelector('.bom-vat').checked;
+    const kind=(r.querySelector('.bom-kind')||{}).value||'mat';
     if(matName && !m) unmatched++;                       // พิมพ์ชื่อแต่ไม่ตรงวัตถุดิบที่มี
-    if(m&&qty>0) bom.push({matId:m.id,price:isNaN(price)?null:price,qty,unit,vat});
+    if(m&&qty>0) bom.push({matId:m.id,price:isNaN(price)?null:price,qty,unit,vat,kind});
   });
   if(unmatched){ alert(`มีวัตถุดิบ ${unmatched} แถวที่พิมพ์ชื่อไม่ตรงกับฐานข้อมูล — เลือกจากรายการที่ขึ้นมาให้ หรือไปเพิ่มวัตถุดิบก่อน`); return; }
   if(!bom.length){alert('กรุณาเพิ่มวัตถุดิบอย่างน้อย 1 รายการ');return}
