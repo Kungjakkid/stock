@@ -17,7 +17,7 @@
   // apply theme before paint to avoid flash
   (function(){try{var t=localStorage.getItem('cost-theme')||'light';document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
 </script>
-<link rel="stylesheet" href="styles.css?v=20260625e">
+<link rel="stylesheet" href="styles.css?v=20260625g">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.0.379/build/pdf.min.mjs" type="module"></script>
 <script type="module">
@@ -285,10 +285,12 @@
       </div>
     </details>
     <div class="eyebrow" style="margin-bottom:10px">สูตรวัตถุดิบ (BOM)</div>
-    <div class="bom-edit-head"><span>วัตถุดิบ</span><span>ราคา/หน่วย</span><span>จำนวนใช้</span><span>หน่วยที่ใช้</span><span>ชนิด</span><span>VAT</span><span></span></div>
-    <div id="bom-rows"></div>
-    <button class="btn btn-sm" style="margin-bottom:6px" onclick="addBOMRow()"><svg><use href="#i-plus"/></svg> เพิ่มวัตถุดิบ</button>
-    <div class="bom-foot" style="border-radius:11px;margin:4px 0 2px"><span class="l">รวมต้นทุนต่อชิ้น/ออเดอร์</span><span class="v"><span id="bom-total">0.00</span> ฿</span></div>
+    <div class="bom-grid">
+      <div class="bom-edit-head"><span>วัตถุดิบ</span><span>ราคา/หน่วย</span><span>จำนวนใช้</span><span>หน่วยที่ใช้</span><span>ชนิด</span><span>VAT</span><span></span></div>
+      <div id="bom-rows"></div>
+      <div class="bom-grid-foot"><span class="l">รวมต้นทุนต่อชิ้น/ออเดอร์</span><span class="v"><span id="bom-total">0.00</span> ฿</span></div>
+    </div>
+    <button class="btn btn-sm bom-addrow" onclick="addBOMRow()"><svg><use href="#i-plus"/></svg> เพิ่มแถว</button>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal('prod-modal')">ยกเลิก</button>
       <button class="btn btn-primary" id="prod-save-btn" onclick="saveProduct()">บันทึก</button>
@@ -386,7 +388,7 @@
 <div class="toast" id="toast"><span class="tdot"></span><span id="toast-msg"></span></div>
 <div class="lightbox" id="lightbox" onclick="this.classList.remove('open')"><img id="lightbox-img" alt=""></div>
 
-<script src="js/app.js?v=20260625e"></script>
-<script src="js/shipments.js?v=20260625e"></script>
+<script src="js/app.js?v=20260625g"></script>
+<script src="js/shipments.js?v=20260625g"></script>
 </body>
 </html>

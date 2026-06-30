@@ -525,23 +525,30 @@ details.platnames .inner{margin-top:12px}
 .divider{height:1px;background:var(--border);margin:18px 0}
 
 /* BOM editor rows in modal */
+/* ===== BOM editor: ตารางแบบ Excel ===== */
+.bom-grid{border:1px solid var(--border-2);border-radius:11px;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:10px;background:var(--surface)}
 .bom-edit-head,.bom-edit-row{
-  display:grid;grid-template-columns:1fr 84px 72px 88px 84px 40px 32px;gap:7px;align-items:center;
+  display:grid;grid-template-columns:minmax(150px,1fr) 84px 70px 84px 96px 40px 36px;align-items:stretch;min-width:560px;
 }
-.bom-edit-head{margin-bottom:6px}
-.bom-edit-head span{font-size:11px;color:var(--text-3);padding:0 2px}
-.bom-edit-row{margin-bottom:8px}
-.bom-edit-row input,.bom-edit-row select{padding:9px 10px;font-size:13px;border-radius:9px}
-.bom-edit-row .vcell{display:flex;justify-content:center}
-@media(max-width:560px){
-  .bom-edit-head{display:none}
-  .bom-edit-row{grid-template-columns:1fr 1fr;grid-auto-rows:auto;gap:7px;
-    background:var(--surface-2);border:1px solid var(--border);border-radius:11px;padding:10px;margin-bottom:9px}
-  .bom-edit-row .bmat{grid-column:1/-1}
-  .bom-edit-row .vcell{justify-content:flex-start}
-  .bom-edit-row .vcell::before{content:"VAT 7%";font-size:12px;color:var(--text-2)}
-  .bom-edit-row .xcell{justify-self:end}
+.bom-edit-head{background:var(--surface-3);border-bottom:1px solid var(--border-2)}
+.bom-edit-head span{font-size:11px;font-weight:600;color:var(--text-2);padding:8px 9px;border-right:1px solid var(--border);display:flex;align-items:center}
+.bom-edit-head span:last-child{border-right:none}
+.bom-edit-row{border-bottom:1px solid var(--border)}
+.bom-edit-row:last-child{border-bottom:none}
+.bom-edit-row>*{border-right:1px solid var(--border);display:flex;align-items:center}
+.bom-edit-row>*:last-child{border-right:none}
+.bom-edit-row input,.bom-edit-row select{
+  width:100%;height:100%;padding:9px 9px;font-size:13px;border:none;border-radius:0;background:transparent;color:var(--text);
 }
+.bom-edit-row input:focus,.bom-edit-row select:focus{outline:2px solid var(--accent);outline-offset:-2px;background:var(--accent-soft)}
+.bom-edit-row .vcell{justify-content:center}
+.bom-edit-row .xcell{justify-content:center;padding:0}
+.bom-edit-row .xcell .icon-x{width:30px;height:30px}
+.bom-grid-foot{display:flex;align-items:center;justify-content:space-between;padding:10px 13px;background:var(--surface-3);border-top:1px solid var(--border-2);font-size:13px}
+.bom-grid-foot .l{font-weight:600;color:var(--text-2)}
+.bom-grid-foot .v{font-family:var(--mono);font-weight:700;font-size:16px;color:var(--accent)}
+.bom-grid-foot{min-width:560px}
+.bom-addrow{margin-bottom:8px}
 
 /* scrollable data table inside import modals */
 .tablescroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px 10px;border-radius:12px}
