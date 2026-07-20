@@ -99,6 +99,15 @@ async function rmRefresh(){
     ]);
     if(stale()) return false;
 
+    // ถ้ามีงานกำลังทำอยู่ ให้การ์ดบนสุดโชว์ความคืบหน้าแทนสถานะเฉยๆ
+    const running = (jobs||[]).find(j=>j.status==='running');
+    const hero = document.getElementById('rm-hero-card');
+    if(running){
+      rmTxt('rm-state','กำลังทำ '+rmAction(running.action));
+      rmTxt('rm-detail', running.message || 'กำลังทำงาน…');
+    }
+    if(hero) hero.classList.toggle('working', !!running);
+
     rmSet('rm-jobs', rmRenderJobs(jobs));
     rmSet('rm-files', rmRenderFiles(files));
     rmTxt('rm-file-count', (files||[]).length+' ไฟล์');

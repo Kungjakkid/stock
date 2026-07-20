@@ -785,3 +785,7 @@ details.platnames .inner{margin-top:12px}
 .rm-order-items{font-size:12.5px;color:var(--text-2);margin-top:4px;line-height:1.5}
 .rm-cost{color:var(--green);font-family:var(--mono);white-space:nowrap}
 .rm-nocost{color:var(--text-3);font-family:inherit;font-weight:400;font-size:12px}
+.rm-hero.working .ico{animation:rm-pulse 1.4s ease-in-out infinite}
+.rm-hero.working .stat-sub{color:var(--accent)}
+@keyframes rm-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(.92)}}
+.rm-badge.running{position:relative;animation:rm-pulse 1.4s ease-in-out infinite}
