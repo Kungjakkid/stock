@@ -1,15 +1,10 @@
 /* ============================================================
    ควบคุมร้าน — Order Manager Remote
-   ต่อกับ Supabase คนละโปรเจคกับระบบต้นทุน จึงสร้าง client แยกตัวหนึ่ง
+   ใช้ Supabase project เดียวกับระบบต้นทุน (รวมมาแล้ว) จึงใช้ client db ร่วมกัน
    ============================================================ */
 
-const RM_URL = 'https://sohcfnompdphlkefwtzj.supabase.co';
-const RM_KEY = 'sb_publishable_KGrfevUzjkxeHvUsNLLr3Q_C9R9cA4v';
 const RM_POLL_MS = 5000;
-
-const rmdb = (window.supabase && window.supabase.createClient)
-  ? window.supabase.createClient(RM_URL, RM_KEY, {auth:{persistSession:false, storageKey:'om-remote'}})
-  : null;
+const rmdb = typeof db !== 'undefined' ? db : null;
 
 let rmMode = 'normal';
 let rmSending = false;     // กันกดปุ่มซ้ำระหว่างส่งคำสั่ง
