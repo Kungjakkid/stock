@@ -55,7 +55,7 @@ let products = [];
 let editingProdId = null;
 let expMonthFilter = 'all';
 
-const PAGE_TITLES={dashboard:'ภาพรวม',expenses:'ค่าใช้จ่าย',materials:'วัตถุดิบ',purchases:'ราคาซื้อ',products:'สินค้า',shipments:'ส่งออก',profit:'กำไร',links:'เชื่อมสินค้า'};
+const PAGE_TITLES={dashboard:'ภาพรวม',expenses:'ค่าใช้จ่าย',materials:'วัตถุดิบ',purchases:'ราคาซื้อ',products:'สินค้า',shipments:'ส่งออก',profit:'กำไร',links:'เชื่อมสินค้า',remote:'ควบคุมร้าน'};
 const TH_MONTH_SHORT={'มกราคม':'ม.ค.','กุมภาพันธ์':'ก.พ.','มีนาคม':'มี.ค.','เมษายน':'เม.ย.','พฤษภาคม':'พ.ค.','มิถุนายน':'มิ.ย.','กรกฎาคม':'ก.ค.','สิงหาคม':'ส.ค.','กันยายน':'ก.ย.','ตุลาคม':'ต.ค.','พฤศจิกายน':'พ.ย.','ธันวาคม':'ธ.ค.'};
 const shortMonth = m => (TH_MONTH_SHORT[String(m).split(' ')[0]]||String(m).split(' ')[0]);
 
@@ -114,6 +114,8 @@ function showPage(name, btn){
   if(name==='products') renderProducts();
   if(name==='profit') renderProfit();
   if(name==='links') renderLinks();
+  if(name==='remote' && window.renderRemote) renderRemote();
+  if(name!=='remote' && window.rmStopPolling) rmStopPolling();
   if(name==='shipments'){ renderShipments(); updateUnlinkedBadge(); loadDgOrders().then(()=>{ if(document.getElementById('page-shipments').classList.contains('active')){ renderShipments(); renderShipPending(); renderDgOverview(); } }); }
 }
 
