@@ -1201,7 +1201,7 @@ function renderDgOverview(){
   const rows=keys.map(k=>{
     const all=g[k], live=all.filter(o=>!DG_DEAD_SET.has(o.order_status));
     const net=live.reduce((s,o)=>s+(+o.net_revenue||0),0);
-    const prof=live.reduce((s,o)=>s+dgProfitOf(o),0);
+    const cost=live.reduce((s,o)=>s+dgCostOf(o),0);   // ไม่มียอดขายแล้ว จึงแสดงต้นทุนแทนกำไร
     const dead=all.length-live.length;
     const pend=all.filter(o=>String(o.order_status||'').toUpperCase()==='PROCESSING').length;
     const open=window._dgOpenPeriod===k;
@@ -1209,23 +1209,23 @@ function renderDgOverview(){
     if(open){
       sub=`<tr class="dg-sub"><td colspan="5"><div class="bom-table-wrap"><table class="dtable" style="min-width:520px"><tbody>${
         all.sort((a,b)=>(a.platform).localeCompare(b.platform)).map(o=>{
-          const dead=DG_DEAD_SET.has(o.order_status); const pr=dgProfitOf(o);
+          const dead=DG_DEAD_SET.has(o.order_status); const oc=dgCostOf(o);
           const prod=(o.items&&o.items.length)?o.items.map(i=>esc(i.name||i.sku)).join(', '):'';
           return `<tr>
             <td><span class="chiplet" style="background:${PFC[o.platform]};color:#fff;font-size:10px">${PFL[o.platform]||o.platform}</span></td>
             <td class="mono" style="font-size:11px">#${esc(o.order_id)}</td>
             <td style="font-size:12px">${prod.slice(0,34)}</td>
             <td style="font-size:11px;color:${dead?'var(--red)':'var(--text-3)'}">${esc(dgStatusTH(o.order_status))}</td>
-            <td class="mono" style="text-align:right;font-size:11px">${fmtB(o.net_revenue)}</td>
-            <td class="mono pos" style="text-align:right;font-size:11px">${dead?'-':fmtB(pr)}</td>
+            <td class="mono" style="text-align:right;font-size:11px">${+o.unit_count||0}</td>
+            <td class="mono" style="text-align:right;font-size:11px">${dead?'-':fmtB(oc)}</td>
           </tr>`;
         }).join('')}</tbody></table></div></td></tr>`;
     }
     return `<tr class="dg-row" onclick="toggleDgPeriod('${k}')" style="cursor:pointer">
       <td class="ship-od">${lbl(k)}${(mode==='round'&&pend&&k>=pendCut)?` <span class="chiplet" style="background:var(--amber,#d98a00);color:#fff">รอส่ง ${pend}</span>`:''}</td>
       <td class="mono" style="text-align:right;font-weight:700">${live.length}${dead?`<span style="color:var(--text-3);font-weight:400"> +${dead}</span>`:''}</td>
-      <td class="mono" style="text-align:right">${fmtB(net)}</td>
-      <td class="mono pos" style="text-align:right;font-weight:600">${fmtB(prof)}</td>
+      <td class="mono" style="text-align:right">${live.reduce((x,o)=>x+(+o.unit_count||0),0)}</td>
+      <td class="mono" style="text-align:right;font-weight:600">${fmtB(cost)}</td>
       <td style="text-align:right;color:var(--text-3)"><svg style="width:14px;height:14px"><use href="#i-chev"/></svg></td>
     </tr>${sub}`;
   }).join('');
@@ -1235,7 +1235,7 @@ function renderDgOverview(){
       <button class="${mode==='month'?'active':''}" onclick="setShipMode('month')">📅 รายเดือน</button>
     </div>
     <div class="bom-table-wrap"><table class="dtable ship-od-table">
-      <thead><tr><th>${mode==='month'?'เดือน':'วันรอบ'}</th><th style="text-align:right">ออเดอร์</th><th style="text-align:right">ขายสุทธิ</th><th style="text-align:right">กำไร</th><th></th></tr></thead>
+      <thead><tr><th>${mode==='month'?'เดือน':'วันรอบ'}</th><th style="text-align:right">ออเดอร์</th><th style="text-align:right">ชิ้น</th><th style="text-align:right">ต้นทุน</th><th></th></tr></thead>
       <tbody>${rows}</tbody></table></div>`;
 }
 window.renderDgOverview=renderDgOverview;
