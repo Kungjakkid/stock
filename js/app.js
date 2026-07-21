@@ -1231,7 +1231,7 @@ function renderDgOverview(){
   }).join('');
   el.innerHTML=`
     <div class="seg-toggle">
-      <button class="${mode==='round'?'active':''}" onclick="setShipMode('round')">🔄 รายรอบ (ตัดเที่ยง)</button>
+      <button class="${mode==='round'?'active':''}" onclick="setShipMode('round')">🔄 รายรอบ (วันที่รวบ)</button>
       <button class="${mode==='month'?'active':''}" onclick="setShipMode('month')">📅 รายเดือน</button>
     </div>
     <div class="bom-table-wrap"><table class="dtable ship-od-table">
