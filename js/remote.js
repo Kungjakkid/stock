@@ -43,11 +43,20 @@ function rmRenderJobs(jobs){
     </div>`).join('')+`</div>`;
 }
 
+// เวลาไฟล์: วันนี้โชว์แค่เวลา วันอื่นโชว์วันที่ด้วย
+function rmFileTime(value){
+  const d = value ? new Date(value) : null;
+  if(!d || isNaN(d)) return '-';
+  const time = d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+  const sameDay = d.toDateString() === new Date().toDateString();
+  return sameDay ? time : d.toLocaleDateString('th-TH',{day:'numeric',month:'short'}) + ' ' + time;
+}
+
 function rmRenderFiles(files){
   if(!files || !files.length) return emptyState('i-doc','ยังไม่มีไฟล์จาก Mac','ไฟล์ PDF จะขึ้นที่นี่หลังทำออเดอร์เสร็จ');
   return `<div class="rm-list">`+files.map(f=>`
     <div class="rm-file">
-      <div class="rm-file-name">${rmEsc(f.filename)}<span>${(Number(f.size_bytes||0)/1048576).toFixed(1)} MB</span></div>
+      <div class="rm-file-name">${rmEsc(f.filename)}<span>${rmEsc(rmFileTime(f.created_at))} · ${(Number(f.size_bytes||0)/1048576).toFixed(1)} MB</span></div>
       <a class="btn" href="${rmEsc(f.download_url)}" target="_blank" rel="noopener"><svg><use href="#i-doc"/></svg> ดาวน์โหลด</a>
     </div>`).join('')+`</div>`;
 }
