@@ -31,6 +31,64 @@ function rmSetOnline(text, online){
 }
 
 
+
+/* ---------- แชร์ไฟล์ PDF ออกจากหน้าเว็บ ---------- */
+// ส่งตัวไฟล์จริงเข้าแอปแชร์ของเครื่อง (ไลน์ ฯลฯ) — ชื่อไฟล์ถูกต้องและไม่ต้องส่งลิงก์ให้หลุด
+async function rmShare(url, filename, btn){
+  if(!url){ showToast('ยังไม่มีลิงก์ไฟล์นี้','error'); return; }
+  const label = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'กำลังเตรียม…'; }
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('โหลดไฟล์ไม่สำเร็จ');
+    const file = new File([await res.blob()], filename, {type:'application/pdf'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      await navigator.share({files:[file], title:filename});
+    }else if(navigator.share){
+      await navigator.share({title:filename, url});     // เครื่องที่แชร์ไฟล์ไม่ได้ ส่งลิงก์แทน
+    }else{
+      await navigator.clipboard.writeText(url);
+      showToast('คัดลอกลิงก์แล้ว');
+    }
+  }catch(err){
+    if(err && err.name === 'AbortError') return;        // ผู้ใช้กดยกเลิกเอง
+    console.error('share failed', err);
+    showToast('แชร์ไม่สำเร็จ: '+(err.message||err),'error');
+  }finally{
+    if(btn){ btn.disabled = false; btn.innerHTML = label; }
+  }
+}
+
+// แชร์ทั้งรอบในครั้งเดียว
+async function rmShareRound(at, btn){
+  const files = (rmLastFiles||[]).filter(f => Math.abs(new Date(f.created_at).getTime() - at) <= 15*60*1000);
+  if(!files.length){ showToast('ไม่มีไฟล์ในรอบนี้','error'); return; }
+  const label = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled = true; btn.textContent = 'กำลังเตรียม…'; }
+  try{
+    const loaded = [];
+    for(const f of files){
+      const res = await fetch(f.download_url);
+      if(!res.ok) continue;
+      loaded.push(new File([await res.blob()], f.filename, {type:'application/pdf'}));
+    }
+    if(!loaded.length) throw new Error('โหลดไฟล์ไม่สำเร็จ');
+    if(navigator.canShare && navigator.canShare({files:loaded})){
+      await navigator.share({files:loaded, title:'ใบปะหน้า '+loaded.length+' ไฟล์'});
+    }else{
+      showToast('เครื่องนี้แชร์หลายไฟล์พร้อมกันไม่ได้ — แชร์ทีละไฟล์ได้','error');
+    }
+  }catch(err){
+    if(err && err.name === 'AbortError') return;
+    console.error('share round failed', err);
+    showToast('แชร์ไม่สำเร็จ: '+(err.message||err),'error');
+  }finally{
+    if(btn){ btn.disabled = false; btn.innerHTML = label; }
+  }
+}
+
+let rmLastFiles = [];
+
 /* ---------- ล้างรายการที่รก (ซ่อนเฉยๆ ไม่ลบของจริง) ---------- */
 function rmClearedAt(kind){
   try{ return Number(localStorage.getItem('om-cleared-'+kind)) || 0 }catch(e){ return 0 }
@@ -100,6 +158,7 @@ let rmShowOld = false;
 function rmToggleOld(){ rmShowOld = !rmShowOld; rmRefresh(); }
 
 function rmRenderFiles(allFiles){
+  rmLastFiles = allFiles || [];
   const files = rmAfterClear(allFiles, 'files');
   if(!files.length) return emptyState('i-doc','ยังไม่มีไฟล์จาก Mac','ไฟล์ PDF จะขึ้นที่นี่หลังทำออเดอร์เสร็จ');
   const isToday = f => rmDayLabel(new Date(f.created_at).getTime()) === 'วันนี้';
@@ -118,11 +177,15 @@ function rmRenderFiles(allFiles){
         <span class="rm-round-time">${rmEsc(rmDayLabel(round.at))} ${rmEsc(time)}</span>
         ${index===0?'<span class="rm-round-tag">รอบล่าสุด</span>':''}
         <span class="rm-round-count">${round.files.length} ไฟล์</span>
+        <button class="rm-clear" onclick="rmShareRound(${round.at},this)">แชร์ทั้งรอบ</button>
       </div>
       ${round.files.map(f=>`
       <div class="rm-file">
         <div class="rm-file-name">${rmEsc(f.filename)}<span>${(Number(f.size_bytes||0)/1048576).toFixed(1)} MB</span></div>
-        <a class="btn" href="${rmEsc(f.download_url)}" target="_blank" rel="noopener"><svg><use href="#i-doc"/></svg> ดาวน์โหลด</a>
+        <div class="rm-file-acts">
+          <button class="btn" onclick="rmShare('${rmEsc(f.download_url)}','${rmEsc(f.filename)}',this)"><svg><use href="#i-share"/></svg> แชร์</button>
+          <a class="btn" href="${rmEsc(f.download_url)}" target="_blank" rel="noopener"><svg><use href="#i-doc"/></svg></a>
+        </div>
       </div>`).join('')}
     </div>`;
   }).join('') + toggle + rmUndoBtn('files');
