@@ -30,8 +30,31 @@ function rmSetOnline(text, online){
   el.className='rm-conn '+(online?'on':'off');
 }
 
-function rmRenderJobs(jobs){
-  if(!jobs || !jobs.length) return emptyState('i-doc','ยังไม่มีคำสั่ง','กดปุ่มด้านบนเพื่อสั่งงาน Mac');
+
+/* ---------- ล้างรายการที่รก (ซ่อนเฉยๆ ไม่ลบของจริง) ---------- */
+function rmClearedAt(kind){
+  try{ return Number(localStorage.getItem('om-cleared-'+kind)) || 0 }catch(e){ return 0 }
+}
+function rmClear(kind){
+  try{ localStorage.setItem('om-cleared-'+kind, String(Date.now())) }catch(e){}
+  if(kind === 'files') rmShowOld = false;
+  rmRefresh();
+  showToast(kind === 'jobs' ? 'ล้างรายการงานแล้ว' : 'ล้างรายการไฟล์แล้ว');
+}
+function rmUndoClear(kind){
+  try{ localStorage.removeItem('om-cleared-'+kind) }catch(e){}
+  rmRefresh();
+}
+function rmAfterClear(rows, kind){
+  const at = rmClearedAt(kind);
+  return at ? (rows||[]).filter(r => new Date(r.created_at).getTime() > at) : (rows||[]);
+}
+const rmUndoBtn = kind => rmClearedAt(kind)
+  ? `<button class="btn btn-sm rm-oldtoggle" onclick="rmUndoClear('${kind}')">แสดงรายการที่ล้างไปแล้ว</button>` : '';
+
+function rmRenderJobs(allJobs){
+  const jobs = rmAfterClear(allJobs, 'jobs');
+  if(!jobs.length) return emptyState('i-doc','ยังไม่มีคำสั่ง','กดปุ่มด้านบนเพื่อสั่งงาน Mac') + rmUndoBtn('jobs');
   return `<div class="rm-list">`+jobs.map(j=>`
     <div class="rm-job">
       <div class="rm-job-top">
@@ -40,7 +63,7 @@ function rmRenderJobs(jobs){
       </div>
       <div class="rm-job-sub">${rmEsc(rmTime(j.created_at))} · ${j.mode==='all'?'รวบรวมทั้งหมด':'ออเดอร์ใหม่'}</div>
       ${j.message?`<div class="rm-job-sub">${rmEsc(j.message)}</div>`:''}
-    </div>`).join('')+`</div>`;
+    </div>`).join('')+`</div>`+rmUndoBtn('jobs');
 }
 
 // เวลาไฟล์: วันนี้โชว์แค่เวลา วันอื่นโชว์วันที่ด้วย
@@ -76,8 +99,9 @@ function rmDayLabel(ts){
 let rmShowOld = false;
 function rmToggleOld(){ rmShowOld = !rmShowOld; rmRefresh(); }
 
-function rmRenderFiles(files){
-  if(!files || !files.length) return emptyState('i-doc','ยังไม่มีไฟล์จาก Mac','ไฟล์ PDF จะขึ้นที่นี่หลังทำออเดอร์เสร็จ');
+function rmRenderFiles(allFiles){
+  const files = rmAfterClear(allFiles, 'files');
+  if(!files.length) return emptyState('i-doc','ยังไม่มีไฟล์จาก Mac','ไฟล์ PDF จะขึ้นที่นี่หลังทำออเดอร์เสร็จ');
   const isToday = f => rmDayLabel(new Date(f.created_at).getTime()) === 'วันนี้';
   const oldCount = files.filter(f=>!isToday(f)).length;
   const shown = rmShowOld ? files : files.filter(isToday);
@@ -101,7 +125,7 @@ function rmRenderFiles(files){
         <a class="btn" href="${rmEsc(f.download_url)}" target="_blank" rel="noopener"><svg><use href="#i-doc"/></svg> ดาวน์โหลด</a>
       </div>`).join('')}
     </div>`;
-  }).join('') + toggle;
+  }).join('') + toggle + rmUndoBtn('files');
 }
 
 function rmRenderOrders(history, costMap){
