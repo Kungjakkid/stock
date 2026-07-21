@@ -73,9 +73,19 @@ function rmDayLabel(ts){
   return d.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
 }
 
+let rmShowOld = false;
+function rmToggleOld(){ rmShowOld = !rmShowOld; rmRefresh(); }
+
 function rmRenderFiles(files){
   if(!files || !files.length) return emptyState('i-doc','ยังไม่มีไฟล์จาก Mac','ไฟล์ PDF จะขึ้นที่นี่หลังทำออเดอร์เสร็จ');
-  const rounds = rmGroupRounds(files);
+  const isToday = f => rmDayLabel(new Date(f.created_at).getTime()) === 'วันนี้';
+  const oldCount = files.filter(f=>!isToday(f)).length;
+  const shown = rmShowOld ? files : files.filter(isToday);
+  const toggle = oldCount
+    ? `<button class="btn btn-sm rm-oldtoggle" onclick="rmToggleOld()">${rmShowOld?'ซ่อนไฟล์เก่า':'ดูไฟล์เก่า ('+oldCount+')'}</button>`
+    : '';
+  if(!shown.length) return emptyState('i-doc','ยังไม่มีไฟล์ของวันนี้','กดรวบออเดอร์แล้วไฟล์จะขึ้นที่นี่') + toggle;
+  const rounds = rmGroupRounds(shown);
   return rounds.map((round, index)=>{
     const time = new Date(round.at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
     const older = rmDayLabel(round.at) !== 'วันนี้';
@@ -91,7 +101,7 @@ function rmRenderFiles(files){
         <a class="btn" href="${rmEsc(f.download_url)}" target="_blank" rel="noopener"><svg><use href="#i-doc"/></svg> ดาวน์โหลด</a>
       </div>`).join('')}
     </div>`;
-  }).join('');
+  }).join('') + toggle;
 }
 
 function rmRenderOrders(history, costMap){
