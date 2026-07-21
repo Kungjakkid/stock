@@ -52,13 +52,46 @@ function rmFileTime(value){
   return sameDay ? time : d.toLocaleDateString('th-TH',{day:'numeric',month:'short'}) + ' ' + time;
 }
 
+// จัดไฟล์เป็น "รอบ" — ไฟล์ที่อัปห่างกันไม่เกิน 15 นาที ถือเป็นรอบเดียวกัน
+function rmGroupRounds(files){
+  const rounds = [];
+  for(const f of files){
+    const t = new Date(f.created_at).getTime();
+    const last = rounds[rounds.length-1];
+    if(last && Math.abs(last.at - t) <= 15*60*1000) last.files.push(f);
+    else rounds.push({at: t, files: [f]});
+  }
+  return rounds;
+}
+
+function rmDayLabel(ts){
+  const d = new Date(ts), now = new Date();
+  const day = x => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 86400000);
+  if(diff === 0) return 'วันนี้';
+  if(diff === 1) return 'เมื่อวาน';
+  return d.toLocaleDateString('th-TH',{day:'numeric',month:'short'});
+}
+
 function rmRenderFiles(files){
   if(!files || !files.length) return emptyState('i-doc','ยังไม่มีไฟล์จาก Mac','ไฟล์ PDF จะขึ้นที่นี่หลังทำออเดอร์เสร็จ');
-  return `<div class="rm-list">`+files.map(f=>`
-    <div class="rm-file">
-      <div class="rm-file-name">${rmEsc(f.filename)}<span>${rmEsc(rmFileTime(f.created_at))} · ${(Number(f.size_bytes||0)/1048576).toFixed(1)} MB</span></div>
-      <a class="btn" href="${rmEsc(f.download_url)}" target="_blank" rel="noopener"><svg><use href="#i-doc"/></svg> ดาวน์โหลด</a>
-    </div>`).join('')+`</div>`;
+  const rounds = rmGroupRounds(files);
+  return rounds.map((round, index)=>{
+    const time = new Date(round.at).toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'});
+    const older = rmDayLabel(round.at) !== 'วันนี้';
+    return `<div class="rm-round${older?' old':''}">
+      <div class="rm-round-head">
+        <span class="rm-round-time">${rmEsc(rmDayLabel(round.at))} ${rmEsc(time)}</span>
+        ${index===0?'<span class="rm-round-tag">รอบล่าสุด</span>':''}
+        <span class="rm-round-count">${round.files.length} ไฟล์</span>
+      </div>
+      ${round.files.map(f=>`
+      <div class="rm-file">
+        <div class="rm-file-name">${rmEsc(f.filename)}<span>${(Number(f.size_bytes||0)/1048576).toFixed(1)} MB</span></div>
+        <a class="btn" href="${rmEsc(f.download_url)}" target="_blank" rel="noopener"><svg><use href="#i-doc"/></svg> ดาวน์โหลด</a>
+      </div>`).join('')}
+    </div>`;
+  }).join('');
 }
 
 function rmRenderOrders(history, costMap){
